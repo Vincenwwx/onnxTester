@@ -17,5 +17,6 @@ def get_resNet152(input_shape, n_classes):
 
     return model
 
+
 def get_inceptionV3():
     return tf.keras.applications.InceptionV3()

@@ -1,10 +1,10 @@
 import os
 import gin
-import matlab.engine
-from tf_models import get_resNet152, get_inceptionV4
+#import matlab.engine
+from models.tf_models import get_resNet152, get_inceptionV3
 
 
-@gin.configuration
+@gin.configurable
 class ModelInitializer:
     def __init__(self, origin_framework, dataset_name, model_path="", model_name=""):
         self.model_path = model_path

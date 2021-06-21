@@ -30,8 +30,3 @@ def gen_run_folder(mode, test_id=''):
             v.touch(exist_ok=True)
 
     return run_paths
-
-
-def save_config(path_gin, config):
-    with open(path_gin, 'w') as f_config:
-        f_config.write(config)

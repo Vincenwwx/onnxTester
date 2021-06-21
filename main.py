@@ -1,9 +1,7 @@
 import logging
 import gin
 import argparse
-from absl import app, flags
 from utils import utils_params, utils_misc
-
 from models.model_initialize import ModelInitializer
 from evaluation.model_test import Tester
 from model_convert import convert_origin_model
@@ -50,4 +48,4 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    app.run(main)
+    main(argv)
