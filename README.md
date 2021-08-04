@@ -15,3 +15,7 @@ The deep learning framework to test here include:
 - TensorFlow
 - PyTorch
 - Matlab
+
+## Dependencies
+
+python 3.7

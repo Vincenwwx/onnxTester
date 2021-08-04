@@ -1,8 +1,15 @@
 import logging
 
 
-def set_loggers(path_log=None, logging_level=0, b_stream=False, b_debug=False):
-
+def set_loggers(path_log=None, logging_level=0, b_stream=False):
+    """
+    set loggers
+    :param path_log: path of log file
+    :param logging_level: specify from which level of level the information should be logged
+                          int, can be 0 to 5
+    :param b_stream: boolean, if True, the logging info will also be printed to console
+    :return: None
+    """
     # standard logger
     logger = logging.getLogger()
     logger.setLevel(logging_level)

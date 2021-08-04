@@ -1,22 +1,40 @@
 import tensorflow as tf
-from tensorflow.keras.applications.resnet50 import preprocess_input, decode_predictions
+import logging
 
 
-def get_resNet152(input_shape, n_classes):
-    inputs = tf.keras.layers.Input(input_shape)
-    resNet152 = tf.keras.applications.ResNet152(weights="imagenet",
-                                                include_top=False,
-                                                input_tensor=inputs,
-                                                )
-    resNet152.trainable = False
-    x = resNet152.output
-    x = tf.keras.layers.GlobalAvgPool2D()(x)
-    x = tf.keras.layers.Dense(64, activation="relu")(x)
-    output = tf.keras.layers.Dense(n_classes, activation="softmax")(x)
-    model = tf.keras.Model(inputs=inputs, output=output, name="tf_resNet152")
+def tf_initialise_model(model_name, n_classes=90):
+
+    if model_name == "resnet50":
+        logging.info("Now initialize resNet-50 model")
+        inputs = tf.keras.layers.Input(shape=(224, 224, 3))
+        base_model = tf.keras.applications.resnet50.ResNet50(include_top=False, weights='imagenet',
+                                                             input_tensor=inputs)
+        base_model.trainable = False
+
+        x = base_model.output
+        x = tf.keras.layers.GlobalAveragePooling2D()(x)
+        output = tf.keras.layers.Dense(n_classes)(x)
+        model = tf.keras.Model(inputs=inputs, outputs=output, name='tl_resNet50')
+
+    elif model_name == "inceptionv3":
+        logging.info("Now initialize inception-V3 model")
+        inputs = tf.keras.layers.Input(shape=(299, 299, 3))
+        base_model = tf.keras.applications.inception_v3.InceptionV3(include_top=False, weights='imagenet',
+                                                                    input_tensor=inputs)
+        base_model.trainable = False
+        x = base_model.output
+        x = tf.keras.layers.GlobalAveragePooling2D()(x)
+        output = tf.keras.layers.Dense(n_classes)(x)
+        model = tf.keras.Model(inputs=inputs, outputs=output, name='tl_inceptionv3')
+
+    else:
+        logging.info("Now initialize VGG-16 model")
+        inputs = tf.keras.layers.Input(shape=(224, 224, 3))
+        base_model = tf.keras.applications.vgg16.VGG16(include_top=False, weights='imagenet', input_tensor=inputs)
+        base_model.trainable = False
+        x = base_model.output
+        x = tf.keras.layers.GlobalAveragePooling2D()(x)
+        output = tf.keras.layers.Dense(n_classes)(x)
+        model = tf.keras.Model(inputs=inputs, outputs=output, name='tl_vgg16')
 
     return model
-
-
-def get_inceptionV3():
-    return tf.keras.applications.InceptionV3()
