@@ -26,6 +26,8 @@ def gen_run_folder(mode, test_id=''):
     run_paths['program_log'] = test_folder_root.joinpath("program_log")
     run_paths['gin_log'] = test_folder_root.joinpath("config_operative.gin")
     run_paths['report'] = test_folder_root.joinpath("report")
+    run_paths['coco_dataset'] = pathlib.Path(__file__).resolve().parents[1]\
+        .joinpath("data_pipeline", "coco_2017")
     if mode == "convert":
         run_paths["saved_models"] = test_folder_root.joinpath("saved_models")
         run_paths["saved_models"].mkdir(parents=True, exist_ok=True)

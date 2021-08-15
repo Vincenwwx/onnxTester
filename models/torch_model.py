@@ -1,16 +1,19 @@
 import torch
 import torch.nn as nn
 import torch.optim as torch_optimizer
-from torchvision import datasets, models, transforms
+from torchvision import models
 import time
 import copy
 import gin
 
 
 @gin.configurable
-class TorchTest:
+class Torch_Test:
+    """
+    generate and train models in PyTorch
+    """
+    def __init__(self, num_classes=91, feature_extract=True):
 
-    def __init__(self, num_classes=90, feature_extract=True):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         # Setup the loss function, here we use cross entropy loss
         self.criterion = nn.CrossEntropyLoss()
@@ -52,7 +55,7 @@ class TorchTest:
             self.model_ft.classifier[6] = nn.Linear(num_ftrs, self.num_classes)
             self.input_size = 224
 
-        elif model_name == "inceptionv3":
+        else:
             """ Inception v3
             Be careful, expects (299,299) sized images and has auxiliary output
             """
@@ -67,11 +70,8 @@ class TorchTest:
             self.input_size = 299
             self.is_inception = True
 
-        else:
-            print("Invalid model name, exiting...")
-            exit()
-
     def set_optimizer(self, optimizer="SGD", learning_rate=0.001, momentum=0.9):
+
         self.model_ft = self.model_ft.to(self.device)
         # Gather the parameters to be optimized/updated in this run. If we are
         # fine tuning we will be updating all parameters.
@@ -81,12 +81,12 @@ class TorchTest:
         print("Params to learn:")
         if self.feature_extract:
             params_to_update = []
-            for name, param in self.model.named_parameters():
+            for name, param in self.model_ft.named_parameters():
                 if param.requires_grad:
                     params_to_update.append(param)
                     print("\t", name)
         else:
-            for name, param in self.model.named_parameters():
+            for name, param in self.model_ft.named_parameters():
                 if param.requires_grad:
                     print("\t", name)
 
@@ -95,9 +95,6 @@ class TorchTest:
             self.optimizer_ft = torch_optimizer.SGD(params_to_update, learning_rate, momentum)
         elif optimizer == "Adam":
             self.optimizer_ft = torch_optimizer.Adam(params_to_update, learning_rate)
-        else:
-            print("For the time being, only SGD and Adam optimizers are supported.")
-            exit()
 
     def torch_train_model(self, dataloaders, num_epochs=10):
         """
@@ -109,88 +106,89 @@ class TorchTest:
 
         # Training
         since = time.time()
-        val_acc_history = []
 
         best_model_wts = copy.deepcopy(self.model_ft.state_dict())
-        best_acc = 0.0
+        self.model_ft.train()  # Set model to training mode
 
         for epoch in range(num_epochs):
             print('Epoch {}/{}'.format(epoch, num_epochs - 1))
             print('-' * 10)
 
-            # Each epoch has a training and validation phase
-            for phase in ['train', 'val']:
-                if phase == 'train':
-                    self.model_ft.train()  # Set model to training mode
-                else:
-                    self.model_ft.eval()   # Set model to evaluate mode
+            # Each epoch has a training phase
+            running_loss = 0.0
+            # running_corrects = 0
 
-                running_loss = 0.0
-                running_corrects = 0
+            # Iterate over data.
+            for image_batch, labels_batch in dataloaders:
+                image_batch = image_batch.to(self.device)
+                labels_batch = labels_batch.to(self.device)
 
-                # Iterate over data.
-                for inputs, labels in dataloaders[phase]:
-                    inputs = inputs.to(self.device)
-                    labels = labels.to(self.device)
+                # zero the parameter gradients
+                self.optimizer_ft.zero_grad()
 
-                    # zero the parameter gradients
-                    self.optimizer_ft.zero_grad()
+                # forward
+                # track history if only in train
+                with torch.set_grad_enabled(True):
+                    # Get model outputs and calculate loss
+                    # Special case for inception because in training it has an auxiliary output. In train
+                    #   mode we calculate the loss by summing the final output and the auxiliary output
+                    #   but in testing we only consider the final output.
+                    if self.is_inception:
+                        # From https://discuss.pytorch.org/t/how-to-optimize-inception-model-with-auxiliary-classifiers/7958
+                        outputs, aux_outputs = self.model_ft(image_batch)
+                        loss1 = self.criterion(outputs, labels_batch)
+                        loss2 = self.criterion(aux_outputs, labels_batch)
+                        loss = loss1 + 0.4 * loss2
+                    else:
+                        outputs = self.model_ft(image_batch)
+                        loss = self.criterion(outputs, labels_batch)
 
-                    # forward
-                    # track history if only in train
-                    with torch.set_grad_enabled(phase == 'train'):
-                        # Get model outputs and calculate loss
-                        # Special case for inception because in training it has an auxiliary output. In train
-                        #   mode we calculate the loss by summing the final output and the auxiliary output
-                        #   but in testing we only consider the final output.
-                        if self.is_inception and phase == 'train':
-                            # From https://discuss.pytorch.org/t/how-to-optimize-inception-model-with-auxiliary-classifiers/7958
-                            outputs, aux_outputs = self.model_ft(inputs)
-                            loss1 = self.criterion(outputs, labels)
-                            loss2 = self.criterion(aux_outputs, labels)
-                            loss = loss1 + 0.4 * loss2
-                        else:
-                            outputs = self.model_ft(inputs)
-                            loss = self.criterion(outputs, labels)
+                    # backward + optimize
+                    loss.backward()
+                    self.optimizer_ft.step()
 
-                        _, preds = torch.max(outputs, 1)
+                # statistics
+                running_loss += loss.item() * image_batch.size(0)
+                # running_corrects += torch.sum(preds == labels.data)
 
-                        # backward + optimize only if in training phase
-                        if phase == 'train':
-                            loss.backward()
-                            self.optimizer_ft.step()
+            epoch_loss = running_loss / len(dataloaders.dataset)
+            # epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
 
-                    # statistics
-                    running_loss += loss.item() * inputs.size(0)
-                    running_corrects += torch.sum(preds == labels.data)
+            print("Epoch Loss: {:.4f}".format(epoch_loss))
+            # print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
 
-                epoch_loss = running_loss / len(dataloaders[phase].dataset)
-                epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
-
-                print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
-
-                # deep copy the model
-                if phase == 'val' and epoch_acc > best_acc:
-                    best_acc = epoch_acc
-                    best_model_wts = copy.deepcopy(self.model_ft.state_dict())
-                if phase == 'val':
-                    val_acc_history.append(epoch_acc)
+            # deep copy the model
+            # if phase == 'val' and epoch_acc > best_acc:
+            #     best_acc = epoch_acc
+            #     best_model_wts = copy.deepcopy(self.model_ft.state_dict())
+            # if phase == 'val':
+            #     val_acc_history.append(epoch_acc)
 
             print()
 
         time_elapsed = time.time() - since
         print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-        print('Best val Acc: {:4f}'.format(best_acc))
+        # print('Best val Acc: {:4f}'.format(best_acc))
 
         # load best model weights
         self.model_ft.load_state_dict(best_model_wts)
-        return val_acc_history
+
+    # todo: comple test function
+    def test_model(self, dataloader):
+
+        since = time.time()
+        self.model_ft.eval()    # set model to evaluation mode, i.e. weights not be updated
+        acc = 0
+        running_loss = 0
+
+        for sample in dataloader:
+            pass
 
     def set_parameter_requires_grad(self):
         """
-        This helper function sets the <tt>.requires_grad</tt> attribute of the parameters in the model
+        This helper function sets the requires_grad attribute of the parameters in the model
         to False when we are feature extracting.
         """
-        if self.feature_extracting:
-            for param in self.model.parameters():
+        if self.feature_extract:
+            for param in self.model_ft.parameters():
                 param.requires_grad = False

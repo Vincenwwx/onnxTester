@@ -4,7 +4,7 @@ import argparse
 from utils import utils_params, utils_misc
 from models.model_initialize import Model_Initializer
 from evaluation.model_test import Tester
-from model_convert import convert_origin_model
+from models.model_convert import convert_origin_model
 
 
 def main(*argv):
@@ -21,7 +21,7 @@ def main(*argv):
                         help="Set running mode")
     args = parser.parse_args()
 
-    # generate folder structure
+    # generate folder structure to save test result
     run_paths = utils_params.gen_run_folder(mode=args.mode, test_id="TEST")
 
     # set loggers
@@ -32,13 +32,14 @@ def main(*argv):
     utils_params.save_config(run_paths['gin_log'], gin.config_str())
 
     # Get DL origin DL model by either loading or auto-generation
-    model_init = Model_Initializer(model_name=args.model_name,
-                                   model_path=args.model_path,
-                                   origin_framework=args.origin_framework)
-    model = model_init.get_model()
+    model_initializer = Model_Initializer(model_name=args.model_name,
+                                          model_path=args.model_path,
+                                          origin_framework=args.origin_framework,
+                                          paths=run_paths)
 
+    # Todo: onnx
     # Convert the origin model to models on other frameworks
-    converted_models = convert_origin_model(model, args.origin_framework)
+    converted_models = convert_origin_model(model_initializer.model, args.origin_framework)
 
     # Test and compare the origin and exported models
     tester = Tester(origin_framework=args.origin_framework,

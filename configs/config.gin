@@ -1,7 +1,7 @@
 # model initialization
 ## Load own DL model
 Model_Initializer.dataset_name = "COCO"
-Model_Initializer.num_classes = 90
+Model_Initializer.num_classes = 91
 Model_Initializer.learning_rate = 0.001
 Model_Initializer.epoch = 10
 Model_Initializer.steps_per_epoch = 100
