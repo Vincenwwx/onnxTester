@@ -1,4 +1,4 @@
-function init_and_output_matlab_model(modelName, dataRoot, savePath)
+function re = init_and_export_matlab_model(info)
 % initialize model and do transfer learning
 % then output the model to specific path
 % :param modelName: name of model to init
@@ -7,6 +7,9 @@ function init_and_output_matlab_model(modelName, dataRoot, savePath)
 % :return None
 
 %% Basic parameters
+modelName = info.modelName;
+dataRoot = info.dataRoot;
+savePath = info.savePath;
 
 inputMin = 0;
 inputMax = 255;
@@ -223,8 +226,7 @@ dlnet = dlnetwork(lgraph);
 fileName = fullfile(savePath, "matlab_"+modelName+".onnx");
 exportONNXNetwork(dlnet, fileName);
 
-
-end
+re = "finished";
 
 %% Auxiliary Functions
 
@@ -233,25 +235,25 @@ function onehot = oneHotCoding(digit, numClasses)
     % :param digit:         origin digit
     % :param numClasses:    number of classes
     % :return an one-hot encoded vector
-    
+
     onehot = zeros(1, numClasses);
     onehot(digit) = 1;
-    
+
 end
 
 
 function [dlX, dlT] = createBatch(X, YTrues, dlnet, inputMin, inputMax, executionEnvironment, modelName)
     %   create a batch dataset for training
-    % :param X:                     mini-batch of data, 
+    % :param X:                     mini-batch of data,
     % :param documents:             tokenized captions
     % :param dlnet:                 a pretrained network
     % :param inputMin:              minimum value for image rescaling
     % :param inputMax:              maximum value for image rescaling
     % :param enc:                   a word encoding
     % :param executionEnvironment:  execution environment
-    % :return a mini-batch of data corresponding to the extracted image 
+    % :return a mini-batch of data corresponding to the extracted image
     %         features and captions for training
-    
+
     dlX = extractImageFeatures(dlnet, X, inputMin, inputMax, executionEnvironment, modelName);
     % YTrues = cat(1, YTrues{:});
     dlT = dlarray(YTrues, "BC");
@@ -272,7 +274,7 @@ function dlX = extractImageFeatures(dlnet, X, inputMin, inputMax, executionEnvir
     % :param inputMax:              maximum value for image rescaling
     % :param executionEnvironment:  execution environment
     % :return batch of extracted feature tensor
-    
+
     % Resize and rescale.
     inputSize = dlnet.Layers(1).InputSize(1:2);
     X = imresize(X, inputSize);
@@ -294,7 +296,7 @@ function dlX = extractImageFeatures(dlnet, X, inputMin, inputMax, executionEnvir
         miniBatchSize = sz(4);
         dlX = reshape(dlX, [numFeatures miniBatchSize]);
     end
-    
+
     dlX = dlarray(dlX, "CB");
 
 end
@@ -311,13 +313,13 @@ function [gradients, loss, dlYPred] = modelGradients(parameterClassifier, dlX, d
 
     % dlYPred = classify(dlX, parameterClassifier);
     dlYPred = fullyconnect(dlX, parameterClassifier.fc.Weights, parameterClassifier.fc.Bias);
-    
+
     % ReLU
     dlYPred = relu(dlYPred);
 
     % multi-label cross entropy loss
     loss = crossentropy(dlYPred, dlT, "TargetCategories", "independent");
-    
+
     % Calculate gradients
     gradients = dlgradient(loss, parameterClassifier);
 
@@ -328,8 +330,11 @@ function weights = initializeGlorot(numOut, numIn)
     % use Glorot initialization of weights
     % :param numOut fan-in
     % :param numIn  fan-out
-    
+
     varWeights = sqrt( 6 / (numIn + numOut) );
     weights = varWeights * (2 * rand([numOut, numIn], 'single') - 1);
 
 end
+
+end
+

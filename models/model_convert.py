@@ -21,7 +21,5 @@ def convert_origin_model(model, origin_framework, paths):
                                                     output_path=str(paths["saved_models"]))
 
     elif origin_framework == "pytorch":
-        torch.onnx.export(model, dummy_input, "mnist.onnx")
-
-    else:
-
+        pass
+        # torch.onnx.export(model, dummy_input, "mnist.onnx")

@@ -1,3 +1,4 @@
+import pathlib
 import gin
 import tensorflow as tf
 import torch
@@ -70,7 +71,6 @@ class Model_Initializer:
                 self.model.fit(dataset, epochs=self.epoch, steps_per_epoch=self.steps_per_epoch)
 
                 self.model.save(self.paths["saved_models"])
-                self.save_model_to_onnx()
 
             elif self.origin_framework == "pytorch":
                 torch_test = Torch_Test(num_classes=self.num_classes,
@@ -90,18 +90,23 @@ class Model_Initializer:
                 self.model = torch_test.model_ft
 
                 torch.save(str(self.paths["saved_models"]))
-                self.save_model_to_onnx()
 
             else:
 
-                engine = matlab.engine.start_matlab()
-                engine.init_and_output_matlab_model(self.model_name,
-                                                    self.paths["coco_dataset"],
-                                                    self.paths["saved_models"])
+                eng = matlab.engine.start_matlab()
+                info = {
+                    "modelName": self.model_name,
+                    "dataRoot": str(self.paths["coco_dataset"]),
+                    "savePath": str(self.paths["saved_models"])
+                }
+                eng.addpath(str(pathlib.Path(__file__).parent))
+                _ = eng.init_and_export_matlab_model(info)
 
     def save_model_to_onnx(self):
 
-        print("[System] Now export {} model of framework {} to .onnx ...".format(self.model_name, self.origin_framework))
+        print("[System] Now export {} model of framework {} to .onnx ...".format(self.model_name,
+                                                                                 self.origin_framework))
+        output_path = str(self.paths["saved_models"].joinpath(self.model_name + ".onnx"))
 
         if self.origin_framework == "tensorflow":
 
@@ -109,8 +114,28 @@ class Model_Initializer:
                 spec = (tf.TensorSpec((None, 224, 224, 3), tf.float32, name="input"),)
             else:
                 spec = (tf.TensorSpec((None, 299, 299, 3), tf.float32, name="input"),)
-            output_path = str(self.paths["saved_models"].joinpath(self.model_name + ".onnx"))
-            model_proto, _ = tf2onnx.convert.from_keras(self.model, input_signature=spec, opset=13, output_path=output_path)
+            model_proto, _ = tf2onnx.convert.from_keras(self.model, input_signature=spec,
+                                                        opset=13, output_path=output_path)
 
         elif self.origin_framework == "pytorch":
-            pass
+
+            if self.model_name == "resnet50" or self.model_name == "vgg16":
+                dummy_input = torch.randn(1, 3, 224, 224)
+            else:
+                dummy_input = torch.randn(1, 3, 299, 299)
+
+            # Obtain your model, it can be also constructed in your script explicitly
+            # Invoke export
+            torch.onnx.export(self.model, dummy_input, output_path)
+
+        print("[System] {} model has been exported as .onnx file.".format(self.model_name))
+
+        return output_path
+
+"""
+Args:
+    param1 (int): The first parameter
+    param2 (str): The second parameter
+    
+Todo: 
+"""

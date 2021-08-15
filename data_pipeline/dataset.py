@@ -23,7 +23,6 @@ class Dataset_loader:
     """
 
     def __init__(self, batch=64, caching=True):
-        # Todo: coco dataset
         self.dataset_folder = pathlib.Path(__file__).parent.joinpath("coco_2017")
         self.dataset_folder.mkdir(exist_ok=True)
         self.batch = batch

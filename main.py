@@ -3,7 +3,7 @@ import gin
 import argparse
 from utils import utils_params, utils_misc
 from models.model_initialize import Model_Initializer
-from evaluation.model_test import Tester
+from evaluation.model_test import Performance_Tester
 from models.model_convert import convert_origin_model
 
 
@@ -38,13 +38,13 @@ def main(*argv):
                                           paths=run_paths)
 
     # Todo: onnx
-    # Convert the origin model to models on other frameworks
-    converted_models = convert_origin_model(model_initializer.model, args.origin_framework)
+    # Export the origin model to onnx
+    onnx_path = model_initializer.save_model_to_onnx()
 
     # Test and compare the origin and exported models
-    tester = Tester(origin_framework=args.origin_framework,
-                    origin_model=model,
-                    converted_models=converted_models)
+    tester = Performance_Tester(origin_framework=args.origin_framework,
+                                origin_model=model_initializer.model,
+                                onnx_path=onnx_path)
     result = tester.test_models()
 
 
