@@ -16,8 +16,8 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 @gin.configurable
 class Model_Initializer:
 
-    def __init__(self, origin_framework, num_classes, learning_rate, epoch, paths,
-                 steps_per_epoch, model_path="", model_name=""):
+    def __init__(self, origin_framework, paths, num_classes, learning_rate=0.001,
+                 epoch=10, steps_per_epoch=30, model_path="", model_name="", momentum=0.9):
         self.origin_framework = origin_framework.lower()
         self.num_classes = num_classes
         self.model_path = model_path
@@ -26,7 +26,7 @@ class Model_Initializer:
         self.learning_rate = learning_rate
         self.epoch = epoch
         self.steps_per_epoch = steps_per_epoch
-        self.momentum = 0.9     # hard-code momentum for SGD
+        self.momentum = momentum     # hard-code momentum for SGD
         self.paths = paths
         """
         Validation:
@@ -45,6 +45,8 @@ class Model_Initializer:
 
         if self.model_path:     # load own trained model
 
+            print("[System] Load user owned model...")
+
             if self.origin_framework == "tensorflow":
                 self.model = tf.keras.models.load_model(self.model_path)
 
@@ -53,26 +55,36 @@ class Model_Initializer:
 
             else:
                 """
-                If the model is build in MATLAB, it should be manually converted to onnx model first
-                before being loaded
+                load MATLAB model saved in .onnx format
                 """
                 self.model = onnx.load(self.model_path)
 
-        elif not self.model_path and self.model_name:       # auto generate model
+        else:       # auto generate model
 
             if self.origin_framework == "tensorflow":
-                self.model = tf_initialise_model(self.model_name)
-                dataset_loader = Dataset_loader()
-                dataset = dataset_loader.load_dataset(self.origin_framework, "train", model_to_use=self.model_name)
 
-                self.model.compile(optimizer=tf.keras.optimizers.SGD(lr=self.learning_rate, momentum=self.momentum),
-                                   loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True))
+                dataset_loader = Dataset_loader()
+                dataset = dataset_loader.load_dataset(framework=self.origin_framework,
+                                                      dataset="train", model_to_use=self.model_name)
+
+                self.model = tf_initialise_model(model_name=self.model_name,
+                                                 n_classes=self.num_classes)
+                self.model.compile(
+                    optimizer=tf.keras.optimizers.SGD(learning_rate=self.learning_rate, momentum=self.momentum),
+                    loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True))
                 self.model.summary()
                 self.model.fit(dataset, epochs=self.epoch, steps_per_epoch=self.steps_per_epoch)
 
-                self.model.save(self.paths["saved_models"])
+                self.model.save(str(self.paths["saved_models"].joinpath("origin_{}_{}.h5".format(self.origin_framework,
+                                                                                                 self.model_name))))
 
             elif self.origin_framework == "pytorch":
+                # get dataset loader
+                dataset_loader = Dataset_loader()
+                dataset = dataset_loader.load_dataset(framework=self.origin_framework,
+                                                      dataset="train",
+                                                      model_to_use=self.model_name)
+                # get torch model
                 torch_test = Torch_Test(num_classes=self.num_classes,
                                         feature_extract=True)
                 torch_test.initialize_model(model_name=self.model_name,
@@ -82,17 +94,17 @@ class Model_Initializer:
                                          momentum=self.momentum)
                 print("Now initialise # {} # model under framework {}".format(self.model_name,
                                                                               self.origin_framework))
-                dataset_loader = Dataset_loader()
-                dataset = dataset_loader.load_dataset(framework=self.origin_framework,
-                                                      dataset="train",
-                                                      model_to_use=self.model_name)
+                # transfer learning
                 torch_test.torch_train_model(dataset, num_epochs=self.epoch)
                 self.model = torch_test.model_ft
 
-                torch.save(str(self.paths["saved_models"]))
+                torch.save(self.model,
+                           str(self.paths["saved_models"].joinpath("origin_{}_{}.pt".format(self.origin_framework,
+                                                                                            self.model_name))))
 
             else:
 
+                print("Now initialize {} model in MATLAB...".format(self.model_name))
                 eng = matlab.engine.start_matlab()
                 info = {
                     "modelName": self.model_name,
@@ -101,12 +113,23 @@ class Model_Initializer:
                 }
                 eng.addpath(str(pathlib.Path(__file__).parent))
                 _ = eng.init_and_export_matlab_model(info)
+                print("...{} model in MATLAB is successfully generated!".format(self.model_name))
 
     def save_model_to_onnx(self):
+        """Export trained model to onnx format.
+
+        The onnx model will be saved in `run_path["saved_models"]` with the name of format
+            origin_{origin framework}_{model name}.onnx
+
+        Example:
+            "origin_tensorflow_vgg16.onnx"
+
+        """
 
         print("[System] Now export {} model of framework {} to .onnx ...".format(self.model_name,
                                                                                  self.origin_framework))
-        output_path = str(self.paths["saved_models"].joinpath(self.model_name + ".onnx"))
+        output_path = str(self.paths["saved_models"].joinpath("origin_{}_{}.onnx".format(self.origin_framework,
+                                                                                         self.model_name)))
 
         if self.origin_framework == "tensorflow":
 
@@ -115,7 +138,7 @@ class Model_Initializer:
             else:
                 spec = (tf.TensorSpec((None, 299, 299, 3), tf.float32, name="input"),)
             model_proto, _ = tf2onnx.convert.from_keras(self.model, input_signature=spec,
-                                                        opset=13, output_path=output_path)
+                                                        opset=8, output_path=output_path)
 
         elif self.origin_framework == "pytorch":
 
@@ -129,13 +152,3 @@ class Model_Initializer:
             torch.onnx.export(self.model, dummy_input, output_path)
 
         print("[System] {} model has been exported as .onnx file.".format(self.model_name))
-
-        return output_path
-
-"""
-Args:
-    param1 (int): The first parameter
-    param2 (str): The second parameter
-    
-Todo: 
-"""

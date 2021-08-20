@@ -131,7 +131,7 @@ trailingAvgSqClassifier = [];
 
 % specify training options
 miniBatchSize = 64;
-numEpochs = 2;
+numEpochs = 25;
 plots = "training-progress";
 executionEnvironment = "auto"; % train on a GPU if one is available
 
@@ -147,8 +147,8 @@ end
 
 iteration = 0;
 numObservationsAll = numel(annotationsAll);
-%numIterationsPerEpoch = floor(numObservationsTrain / miniBatchSize);
-numIterationsPerEpoch = 2;
+numIterationsPerEpoch = floor(numObservationsAll / miniBatchSize);
+%numIterationsPerEpoch = 2;
 start = tic;
 
 % Loop over epochs.
@@ -278,7 +278,10 @@ function dlX = extractImageFeatures(dlnet, X, inputMin, inputMax, executionEnvir
     % Resize and rescale.
     inputSize = dlnet.Layers(1).InputSize(1:2);
     X = imresize(X, inputSize);
-    X = rescale(X, -1, 1, 'InputMin', inputMin, 'InputMax', inputMax);
+    X = rescale(X, 0, 1, 'InputMin', inputMin, 'InputMax', inputMax);
+    meanIm = [0.485 0.456 0.406];
+    stdIm = [0.229 0.224 0.225];
+    X = (X - reshape(meanIm, [1 1 3 1])) ./ reshape(stdIm, [1 1 3 1]);
 
     % Convert to dlarray.
     dlX = dlarray(X, 'SSCB');    % "spatial, spatial, channel, batch"

@@ -2,7 +2,7 @@ import tensorflow as tf
 import logging
 
 
-def tf_initialise_model(model_name, n_classes=90):
+def tf_initialise_model(model_name, n_classes=91):
 
     if model_name == "resnet50":
         logging.info("Now initialize resNet-50 model")

@@ -2,6 +2,9 @@ import os
 import math
 import pathlib
 import tensorflow as tf
+from typing import Tuple, List
+
+NUM_OF_CLASSES = 91
 
 
 def create_tfrecord(img_path_list, labels, tfrecord_file_name):
@@ -52,6 +55,7 @@ def read_tfrecord(dataset):
     :param dataset: "val" or "train"
     :return: tf.Dataset object
     """
+
     def parse_image_function(proto):
         proto = tf.io.parse_single_example(proto,
                                            features={
@@ -72,14 +76,17 @@ def prepare_for_inceptionv3(dataset):
         Modify the label to multi-one-hot coding, for example
             [2, 5] -> [0, 0, 1, 0, 0, 1, 0, 0, 0]
     """
-    label = tf.zeros(90)  # there are 90 categories in COCO 2017
+    label = tf.zeros(NUM_OF_CLASSES)  # there are 90 categories in COCO 2017
     for idx in origin_label.values:
-        label += tf.one_hot(indices=idx, depth=90)
+        label += tf.one_hot(indices=idx, depth=NUM_OF_CLASSES)
     """
         Modify images with regard to different models
     """
     image = tf.image.decode_jpeg(dataset["image_raw"], channels=3)
     image = tf.image.resize(image, (299, 299))
+    image = tf.cast(image, tf.float32) / 255.
+    image = mean_image_subtraction(image, (0.485, 0.456, 0.406))
+    image = standardize_image(image, (0.229, 0.224, 0.225))
     image = tf.keras.applications.inception_v3.preprocess_input(image)
 
     return image, label
@@ -87,12 +94,15 @@ def prepare_for_inceptionv3(dataset):
 
 def prepare_for_vgg16(dataset):
     origin_label = dataset["labels"]
-    label = tf.zeros(90)  # there are 90 categories in COCO 2017
+    label = tf.zeros(NUM_OF_CLASSES)  # there are 90 categories in COCO 2017
     for idx in origin_label.values:
-        label += tf.one_hot(indices=idx, depth=90)
+        label += tf.one_hot(indices=idx, depth=NUM_OF_CLASSES)
 
     image = tf.image.decode_jpeg(dataset["image_raw"], channels=3)
     image = tf.image.resize(image, (224, 224))
+    image = tf.cast(image, tf.float32) / 255.
+    image = mean_image_subtraction(image, (0.485, 0.456, 0.406))
+    image = standardize_image(image, (0.229, 0.224, 0.225))
     image = tf.keras.applications.vgg16.preprocess_input(image)
 
     return image, label
@@ -100,12 +110,98 @@ def prepare_for_vgg16(dataset):
 
 def prepare_for_resnet50(dataset):
     origin_label = dataset["labels"]
-    label = tf.zeros(90)  # there are 90 categories in COCO 2017
+    label = tf.zeros(NUM_OF_CLASSES)  # there are 90 categories in COCO 2017
     for idx in origin_label.values:
-        label += tf.one_hot(indices=idx, depth=90)
+        label += tf.one_hot(indices=idx, depth=NUM_OF_CLASSES)
 
     image = tf.image.decode_jpeg(dataset["image_raw"], channels=3)
     image = tf.image.resize(image, (224, 224))
+    image = tf.cast(image, tf.float32) / 255.
+    image = mean_image_subtraction(image, (0.485, 0.456, 0.406))
+    image = standardize_image(image, (0.229, 0.224, 0.225))
     image = tf.keras.applications.resnet.preprocess_input(image)
 
     return image, label
+
+
+"""
+    reference: https://github.com/tensorflow/models/blob/master/official/vision/image_classification/preprocessing.py
+"""
+
+
+def mean_image_subtraction(image_bytes: tf.Tensor,
+                           means: Tuple[float, ...],
+                           num_channels: int = 3,
+                           dtype: tf.dtypes.DType = tf.float32, ) -> tf.Tensor:
+    """ Subtracts the given means from each image channel.
+
+    For example:
+        means = (123.68, 116.779, 103.939)
+        image_bytes = mean_image_subtraction(image_bytes, means)
+
+    Note that the rank of `image` must be known.
+
+    Args:
+        image_bytes: a tensor of size [height, width, C].
+        means: a C-vector of values to subtract from each channel.
+        num_channels: number of color channels in the image that will be distorted.
+        dtype: the dtype to convert the images to. Set to `None` to skip conversion.
+
+    Returns:
+        the centered image.
+
+    Raises:
+        ValueError: If the rank of `image` is unknown, if `image` has a rank other
+          than three or if the number of channels in `image` doesn't match the
+          number of values in `means`.
+    """
+    if image_bytes.get_shape().ndims != 3:
+        raise ValueError('Input must be of size [height, width, C>0]')
+
+    if len(means) != num_channels:
+        raise ValueError('len(means) must match the number of channels')
+
+    means = tf.broadcast_to(means, tf.shape(image_bytes))
+    if dtype is not None:
+        means = tf.cast(means, dtype=dtype)
+
+    return image_bytes - means
+
+
+def standardize_image(image_bytes: tf.Tensor,
+                      stddev: Tuple[float, ...],
+                      num_channels: int = 3,
+                      dtype: tf.dtypes.DType = tf.float32, ) -> tf.Tensor:
+    """ Divides the given stddev from each image channel.
+
+    For example:
+        stddev = (123.68, 116.779, 103.939)
+        image_bytes = standardize_image(image_bytes, stddev)
+
+    Note that the rank of `image` must be known.
+
+    Args:
+        image_bytes: a tensor of size [height, width, C].
+        stddev: a C-vector of values to divide from each channel.
+        num_channels: number of color channels in the image that will be distorted.
+        dtype: the dtype to convert the images to. Set to `None` to skip conversion.
+
+    Returns:
+        the centered image.
+
+    Raises:
+        ValueError: If the rank of `image` is unknown, if `image` has a rank other
+          than three or if the number of channels in `image` doesn't match the
+          number of values in `stddev`.
+    """
+    if image_bytes.get_shape().ndims != 3:
+        raise ValueError('Input must be of size [height, width, C>0]')
+
+    if len(stddev) != num_channels:
+        raise ValueError('len(stddev) must match the number of channels')
+
+    stddev = tf.broadcast_to(stddev, tf.shape(image_bytes))
+    if dtype is not None:
+        stddev = tf.cast(stddev, dtype=dtype)
+
+    return image_bytes / stddev

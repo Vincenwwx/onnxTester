@@ -37,15 +37,14 @@ def main(*argv):
                                           origin_framework=args.origin_framework,
                                           paths=run_paths)
 
-    # Todo: onnx
     # Export the origin model to onnx
-    onnx_path = model_initializer.save_model_to_onnx()
+    model_initializer.save_model_to_onnx()
 
     # Test and compare the origin and exported models
     tester = Performance_Tester(origin_framework=args.origin_framework,
-                                origin_model=model_initializer.model,
-                                onnx_path=onnx_path)
-    result = tester.test_models()
+                                model_object=model_initializer.model,
+                                paths=run_paths)
+    tester.test_models()
 
 
 if __name__ == "__main__":

@@ -26,10 +26,10 @@ class Torch_DataReader(Dataset):
         image_path = str(self.image_path_list[index])
         # read image into tensor
         try:
-            image = Image.open(image_path)
+            image = Image.open(image_path).convert('RGB')   # some pictures in COCO are B&W
         except:
             print("Error happened when load {} with index {}".format(image_path, index))
-            exit()
+            raise
         """ Apply transformers """
         if self.transform:
             image = self.transform(image)

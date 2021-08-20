@@ -18,4 +18,4 @@ The deep learning framework to test here include:
 
 ## Dependencies
 
-python 3.7
+python=3.7

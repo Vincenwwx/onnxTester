@@ -16,7 +16,7 @@ class Torch_Test:
 
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         # Setup the loss function, here we use cross entropy loss
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.BCEWithLogitsLoss()
         # Init model object
         self.model_ft = None
         self.optimizer_ft = None
@@ -136,11 +136,13 @@ class Torch_Test:
                     if self.is_inception:
                         # From https://discuss.pytorch.org/t/how-to-optimize-inception-model-with-auxiliary-classifiers/7958
                         outputs, aux_outputs = self.model_ft(image_batch)
+                        labels_batch = labels_batch.type_as(outputs)
                         loss1 = self.criterion(outputs, labels_batch)
                         loss2 = self.criterion(aux_outputs, labels_batch)
                         loss = loss1 + 0.4 * loss2
                     else:
                         outputs = self.model_ft(image_batch)
+                        labels_batch = labels_batch.type_as(outputs)
                         loss = self.criterion(outputs, labels_batch)
 
                     # backward + optimize
