@@ -2,11 +2,13 @@
 
 ## About the Project
 
-[Eng] Investigate An Open Neural Network By Using One Neural Network Classifier
+### Title
+[Eng] _Investigate An Open Neural Network By Using One Neural Network Classifier_
 
-[DE] Untersuchung eines offenen Neural Network Exchange Formats 
-anhand eines Deep Neural Network Klassifikators
+[DE] _Untersuchung eines offenen Neural Network Exchange Formats 
+anhand eines Deep Neural Network Klassifikators_
 
+### Stuff
 **Author:** Wenxin Wang, University of Stuttgart
 
 **Tutor:** Simon Kamm, IAS, University of Stuttgart
