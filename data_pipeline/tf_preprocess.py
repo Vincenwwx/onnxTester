@@ -2,7 +2,8 @@ import os
 import math
 import pathlib
 import tensorflow as tf
-from typing import Tuple, List
+from typing import Tuple
+import numpy as np
 
 NUM_OF_CLASSES = 91
 
@@ -83,10 +84,7 @@ def prepare_for_inceptionv3(dataset):
         Modify images with regard to different models
     """
     image = tf.image.decode_jpeg(dataset["image_raw"], channels=3)
-    image = tf.image.resize(image, (299, 299))
-    image = tf.cast(image, tf.float32) / 255.
-    image = mean_image_subtraction(image, (0.485, 0.456, 0.406))
-    image = standardize_image(image, (0.229, 0.224, 0.225))
+    image = preprocess_single_img(image, 299)
     image = tf.keras.applications.inception_v3.preprocess_input(image)
 
     return image, label
@@ -99,10 +97,7 @@ def prepare_for_vgg16(dataset):
         label += tf.one_hot(indices=idx, depth=NUM_OF_CLASSES)
 
     image = tf.image.decode_jpeg(dataset["image_raw"], channels=3)
-    image = tf.image.resize(image, (224, 224))
-    image = tf.cast(image, tf.float32) / 255.
-    image = mean_image_subtraction(image, (0.485, 0.456, 0.406))
-    image = standardize_image(image, (0.229, 0.224, 0.225))
+    image = preprocess_single_img(image, 224)
     image = tf.keras.applications.vgg16.preprocess_input(image)
 
     return image, label
@@ -115,14 +110,18 @@ def prepare_for_resnet50(dataset):
         label += tf.one_hot(indices=idx, depth=NUM_OF_CLASSES)
 
     image = tf.image.decode_jpeg(dataset["image_raw"], channels=3)
-    image = tf.image.resize(image, (224, 224))
-    image = tf.cast(image, tf.float32) / 255.
-    image = mean_image_subtraction(image, (0.485, 0.456, 0.406))
-    image = standardize_image(image, (0.229, 0.224, 0.225))
+    image = preprocess_single_img(image, 224)
     image = tf.keras.applications.resnet.preprocess_input(image)
 
     return image, label
 
+
+def preprocess_single_img(image, size):
+    image = tf.image.resize(image, (size, size))
+    image = tf.cast(image, tf.float32) / 255.
+    image = mean_image_subtraction(image, (0.485, 0.456, 0.406))
+    image = standardize_image(image, (0.229, 0.224, 0.225))
+    return image
 
 """
     reference: https://github.com/tensorflow/models/blob/master/official/vision/image_classification/preprocessing.py
@@ -205,3 +204,36 @@ def standardize_image(image_bytes: tf.Tensor,
         stddev = tf.cast(stddev, dtype=dtype)
 
     return image_bytes / stddev
+
+
+def tf_load_and_preprocess_single_img(img_path: str, size: int) -> np.ndarray:
+    """Load an image as numpy array and pre-process
+
+    Preprocess include:
+        - resize to `size`
+        - rescale to [0-1]
+        - zero center
+        - normalization
+
+    Args:
+        img_path (str): specify image path
+        size (int): specify size of final image
+
+    Return:
+        np.ndarray: numpy array of image
+    """
+
+    image = tf.keras.preprocessing.image.load_img(img_path,
+                                                  target_size=(size, size))
+    image = tf.keras.preprocessing.image.img_to_array(image)
+    # rescale to 0 - 1
+    image = tf.cast(image, tf.float32) / 255.0
+    # normalization
+    mean = np.array([0.485, 0.456, 0.406])
+    dev = np.array([0.229, 0.224, 0.225])
+    image = image - mean.reshape((1, 1, 3))
+    image = image / dev.reshape((1, 1, 3))
+    # convert single image to a batch
+    input_arr = np.array([image])
+
+    return input_arr

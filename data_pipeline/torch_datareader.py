@@ -1,4 +1,5 @@
 import torch
+from torchvision import transforms
 from torch.utils.data import Dataset
 from PIL import Image
 
@@ -42,3 +43,18 @@ class Torch_DataReader(Dataset):
                            dim=0)
 
         return image, labels
+
+
+def torch_load_and_preprocess_single_img(image_path, size):
+
+    my_transforms = transforms.Compose([transforms.Resize(size),
+                                        transforms.ToTensor(),
+                                        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                                             std=[0.229, 0.224, 0.225])])
+    try:
+        image = Image.open(image_path).convert("RGB")
+    except:
+        print("Error happened when load {}".format(image_path))
+        raise
+
+    return my_transforms(image)

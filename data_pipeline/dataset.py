@@ -97,7 +97,7 @@ class Dataset_loader:
             composed_transforms = transforms.Compose([
                 transforms.Resize((size, size)),
                 transforms.ToTensor(),
-                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
             ])
             torch_dataReader = Torch_DataReader(img_path_list, labels, transform=composed_transforms)
 

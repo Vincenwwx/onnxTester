@@ -75,7 +75,7 @@ class Model_Initializer:
                 self.model.summary()
                 self.model.fit(dataset, epochs=self.epoch, steps_per_epoch=self.steps_per_epoch)
 
-                self.model.save(str(self.paths["saved_models"].joinpath("origin_{}_{}.h5".format(self.origin_framework,
+                self.model.save(str(self.paths["saved_models"].joinpath("origin_{}_{}".format(self.origin_framework,
                                                                                                  self.model_name))))
 
             elif self.origin_framework == "pytorch":
