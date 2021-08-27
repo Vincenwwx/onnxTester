@@ -83,7 +83,6 @@ class Performance_Tester(object):
             print(f"Average prediction time of tensorflow: {tf_average_pred_time }s")
             print(f"Average prediction time of MATALB: {matlab_avg_time}s")
 
-        # Todo
         elif self.origin_framework == "pytorch":
             """ When the origin model is in torch, compare it with models in tf and MATLAB.
             """
@@ -135,7 +134,6 @@ class Performance_Tester(object):
             print(f"Average prediction time of tensorflow: {tf_average_pred_time}s")
             print(f"Average prediction time of MATALB: {matlab_avg_time}s")
 
-        # Todo
         else:
             """ When the origin model is in MATLAB, compare it with model in tf.
             """

@@ -57,4 +57,4 @@ def torch_load_and_preprocess_single_img(image_path, size):
         print("Error happened when load {}".format(image_path))
         raise
 
-    return my_transforms(image)
+    return my_transforms(image).unsqueeze(0)
