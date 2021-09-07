@@ -1,9 +1,9 @@
-test
+test/
 test_*
-test_result
-coco_2017
+test_result/
+coco_2017/
 
-.idea
+.idea/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
