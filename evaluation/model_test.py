@@ -25,12 +25,13 @@ class Performance_Tester(object):
 
     """
 
-    def __init__(self, model_name, origin_framework, paths, top_k=5):
+    def __init__(self, model_name, origin_framework, paths, top_k=5, percentile=90):
 
         self.origin_framework = origin_framework.lower()
         self.model_name = model_name.lower()
         self.paths = paths
         self.top_k = top_k
+        self.percentile = percentile
 
         # load origin model from path
         if origin_framework == "pytorch":
@@ -67,8 +68,16 @@ class Performance_Tester(object):
         print("{ Model conversion test }")
         dataset_path = self.paths["coco_dataset"].joinpath("images", test_dataset)
 
+        # variables for model conversion test
+        self.acc_origin_tf = 0
+        self.acc_origin_torch = 0
+        self.acc_origin_mat = 0
+        self.avg_pred_time_tf = 0
+        self.avg_pred_time_torch = 0
+        self.avg_pred_time_mat = 0
+
         # test model in MATLAB
-        imgs_name_list, matlab_preds, matlab_avg_time = self.test_model_in_matlab(dataset_path=str(dataset_path))
+        imgs_name_list, matlab_preds, self.avg_pred_time_mat = self.test_model_in_matlab(dataset_path=str(dataset_path))
         num_imgs = len(imgs_name_list)
 
         if self.origin_framework == "tensorflow":
@@ -87,16 +96,16 @@ class Performance_Tester(object):
                 tf_test_time += (time.time() - tf_start_time)
                 acc_tf_mat += is_top_k_identical(matlab_preds[i], tf_predictions)
 
-            acc_tf_mat = acc_tf_mat / num_imgs * 100
-            tf_average_pred_time = tf_test_time / num_imgs
+            self.acc_origin_mat = acc_tf_mat / num_imgs * 100
+            self.avg_pred_time_tf = tf_test_time / num_imgs
 
-            logging.info("{:=^50}".format(" Model Conversion Test "))
-            basic = " {} in {} ".format(self.model_name, self.origin_framework)
-            logging.info("{:-^50}".format(basic))
-            logging.info("Top-{} ")
-            logging.info(f"Accuracy of tf <-> matlab: {acc_tf_mat}%")
-            logging.info(f"Average prediction time of tensorflow: {tf_average_pred_time}s")
-            logging.info(f"Average prediction time of MATALB: {matlab_avg_time}s\n")
+            # logging.info("{:=^50}".format(" Model Conversion Test "))
+            # basic = " {} in {} ".format(self.model_name, self.origin_framework)
+            # logging.info("{:-^50}".format(basic))
+            # logging.info("Top-{} ")
+            # logging.info(f"Accuracy of tf <-> matlab: {acc_tf_mat}%")
+            # logging.info(f"Average prediction time of tensorflow: {tf_avg_time}s")
+            # logging.info(f"Average prediction time of MATALB: {matlab_avg_time}s\n")
 
         elif self.origin_framework == "pytorch":
             """ When the origin model is in torch, compare it with models in tf and MATLAB.
@@ -135,18 +144,18 @@ class Performance_Tester(object):
                 acc_torch_tf += is_top_k_identical(torch_predictions, tf_predictions)
                 acc_torch_mat += is_top_k_identical(torch_predictions, matlab_preds[i])
 
-            acc_torch_tf = acc_torch_tf / num_imgs * 100
-            acc_torch_mat = acc_torch_mat / num_imgs * 100
-            torch_average_pred_time = torch_test_time / num_imgs
-            tf_average_pred_time = tf_test_time / num_imgs
+            self.acc_origin_tf = acc_torch_tf / num_imgs * 100
+            self.acc_origin_mat = acc_torch_mat / num_imgs * 100
+            self.avg_pred_time_torch = torch_test_time / num_imgs
+            self.avg_pred_time_tf = tf_test_time / num_imgs
 
-            logging.info("------------ Conversion Test Result -------------")
-            logging.info("\t--- {} in {} ---".format(self.model_name, self.origin_framework))
-            logging.info(f"Accuracy of torch <-> matlab: {acc_torch_mat}%")
-            logging.info(f"Accuracy of torch <-> tensorflow: {acc_torch_tf}%")
-            logging.info(f"Average prediction time of PyTorch: {torch_average_pred_time}s")
-            logging.info(f"Average prediction time of tensorflow: {tf_average_pred_time}s")
-            logging.info(f"Average prediction time of MATALB: {matlab_avg_time}s\n")
+            # logging.info("------------ Conversion Test Result -------------")
+            # logging.info("\t--- {} in {} ---".format(self.model_name, self.origin_framework))
+            # logging.info(f"Accuracy of torch <-> matlab: {acc_torch_mat}%")
+            # logging.info(f"Accuracy of torch <-> tensorflow: {acc_torch_tf}%")
+            # logging.info(f"Average prediction time of PyTorch: {torch_avg_time}s")
+            # logging.info(f"Average prediction time of tensorflow: {tf_avg_time}s")
+            # logging.info(f"Average prediction time of MATALB: {matlab_avg_time}s\n")
 
         else:
             """ When the origin model is in MATLAB, compare it with model in tf.
@@ -177,22 +186,31 @@ class Performance_Tester(object):
 
                 acc_mat_tf += is_top_k_identical(matlab_preds[i], tf_predictions)
 
-            acc_mat_tf = acc_mat_tf / num_imgs * 100
-            tf_average_pred_time = tf_test_time / num_imgs
+            self.acc_origin_tf = acc_mat_tf / num_imgs * 100
+            self.avg_pred_time_tf = tf_test_time / num_imgs
 
-            logging.info("\n------------ Conversion Test Result -------------")
-            logging.info("\t--- {} in {} ---".format(self.model_name, self.origin_framework))
-            logging.info(f"Accuracy of MATLAB <-> tensorflow: {acc_mat_tf}%")
-            logging.info(f"Average prediction time of tensorflow: {tf_average_pred_time}s")
-            logging.info(f"Average prediction time of MATALB: {matlab_avg_time}s")
+            # logging.info("\n------------ Conversion Test Result -------------")
+            # logging.info("\t--- {} in {} ---".format(self.model_name, self.origin_framework))
+            # logging.info(f"Accuracy of MATLAB <-> tensorflow: {acc_mat_tf}%")
+            # logging.info(f"Average prediction time of tensorflow: {tf_avg_time}s")
+            # logging.info(f"Average prediction time of MATALB: {matlab_avg_time}s")
 
+        self._generate_report(test_type="conversion", test_dataset=test_dataset)
         print("Finished model conversion test!")
 
-    def test_model_inference(self, test_dataset="val", percentile=90):
+    def test_model_inference(self, test_dataset="val"):
         """ Test exported onnx model regarding model inference with different runtime backends,
         which in our case includes onnxruntime, onnx-tf and MATLAB.
         """
         print("{ Model Inference Test }")
+        # varaibles for model inference test
+        self.acc_origin_and_onnx_tf = 0
+        self.acc_origin_and_onnxruntime = 0
+        self.acc_origin_and_tf_serving = 0
+        self.tf_serving_test_time = []
+        self.onnx_tf_test_time = []
+        self.onnxruntime_test_time = []
+
         # prepare test dataset
         dataset_path = self.paths["coco_dataset"].joinpath("images", test_dataset)
         imgs_path_list = list(sorted(dataset_path.glob("*.jpg")))
@@ -204,13 +222,6 @@ class Performance_Tester(object):
         ort_input_name = ort_sess.get_inputs()[0].name
         # init onnx-tf
         onnx_tf_sess = prepare(self.onnx_object)
-
-        acc_origin_and_onnx_tf = 0
-        acc_origin_and_onnxruntime = 0
-        acc_origin_and_tf_serving = 0
-        tf_serving_test_time = []
-        onnx_tf_test_time = []
-        onnxruntime_test_time = []
 
         if self.origin_framework == "tensorflow":
 
@@ -227,19 +238,19 @@ class Performance_Tester(object):
 
                 # model inference: tensorflow serving
                 tf_serving_preds, interval = send_single_img_to_tensorflow_serving(image, model_name=self.model_name)
-                tf_serving_test_time.append(interval)
+                self.tf_serving_test_time.append(interval)
                 # model inference: onnx-tf
                 ts = time.time()
                 onnx_tf_preds = onnx_tf_sess.run(image)  # return type: np.ndarray
-                onnx_tf_test_time.append(time.time() - ts)
+                self.onnx_tf_test_time.append(time.time() - ts)
                 # model inference: onnxruntime
                 ts = time.time()
                 ort_preds = ort_sess.run(None, {ort_input_name: image.astype(np.float32)})[0]
-                onnxruntime_test_time.append(time.time() - ts)
+                self.onnxruntime_test_time.append(time.time() - ts)
 
-                acc_origin_and_onnx_tf += is_top_k_identical(tf_preds, onnx_tf_preds)
-                acc_origin_and_onnxruntime += is_top_k_identical(tf_preds, ort_preds)
-                acc_origin_and_tf_serving += is_top_k_identical(tf_preds, tf_serving_preds)
+                self.acc_origin_and_onnx_tf += is_top_k_identical(tf_preds, onnx_tf_preds)
+                self.acc_origin_and_onnxruntime += is_top_k_identical(tf_preds, ort_preds)
+                self.acc_origin_and_tf_serving += is_top_k_identical(tf_preds, tf_serving_preds)
 
         elif self.origin_framework == "pytorch":
 
@@ -261,24 +272,23 @@ class Performance_Tester(object):
                 ref_predictions = self.model_object(image)
                 ref_predictions = ref_predictions.detach().numpy()
 
-                # image = tf_load_and_preprocess_single_img(imgs_path_list[i], size=self.size)
                 # model inference: tensorflow serving
                 tf_serving_preds, interval = send_single_img_to_tensorflow_serving(image=image.numpy(),
                                                                                    model_name=self.model_name)
-                tf_serving_test_time.append(interval)
+                self.tf_serving_test_time.append(interval)
                 # model inference: onnx-tf
                 ts = time.time()
                 onnx_tf_preds = onnx_tf_sess.run(image.numpy())  # return type: np.ndarray
-                onnx_tf_test_time.append(time.time() - ts)
+                self.onnx_tf_test_time.append(time.time() - ts)
                 # model inference: onnxruntime
                 ts = time.time()
                 ort_preds = ort_sess.run(None, {ort_input_name: image.numpy().astype(np.float32)})[0]
                 # init TensorFlow Serving in docker
-                onnxruntime_test_time.append(time.time() - ts)
+                self.onnxruntime_test_time.append(time.time() - ts)
 
-                acc_origin_and_onnx_tf += is_top_k_identical(ref_predictions, onnx_tf_preds)
-                acc_origin_and_onnxruntime += is_top_k_identical(ref_predictions, ort_preds)
-                acc_origin_and_tf_serving += is_top_k_identical(ref_predictions, tf_serving_preds)
+                self.acc_origin_and_onnx_tf += is_top_k_identical(ref_predictions, onnx_tf_preds)
+                self.acc_origin_and_onnxruntime += is_top_k_identical(ref_predictions, ort_preds)
+                self.acc_origin_and_tf_serving += is_top_k_identical(ref_predictions, tf_serving_preds)
 
         else:
 
@@ -305,44 +315,45 @@ class Performance_Tester(object):
                 # model inference: tensorflow serving
                 tf_serving_preds, interval = send_single_img_to_tensorflow_serving(image=image,
                                                                                    model_name=self.model_name)
-                tf_serving_test_time.append(interval)
+                self.tf_serving_test_time.append(interval)
                 # model inference: onnx-tf
                 ts = time.time()
                 onnx_tf_preds = onnx_tf_sess.run(image)  # return type: np.ndarray
-                onnx_tf_test_time.append(time.time() - ts)
+                self.onnx_tf_test_time.append(time.time() - ts)
                 # model inference: onnxruntime
                 ts = time.time()
                 ort_preds = ort_sess.run(None, {ort_input_name: image.astype(np.float32)})[0]
-                onnxruntime_test_time.append(time.time() - ts)
+                self.onnxruntime_test_time.append(time.time() - ts)
 
-                acc_origin_and_onnx_tf += is_top_k_identical(ref_predictions, onnx_tf_preds)
-                acc_origin_and_onnxruntime += is_top_k_identical(ref_predictions, ort_preds)
-                acc_origin_and_tf_serving += is_top_k_identical(ref_predictions, tf_serving_preds)
+                self.acc_origin_and_onnx_tf += is_top_k_identical(ref_predictions, onnx_tf_preds)
+                self.acc_origin_and_onnxruntime += is_top_k_identical(ref_predictions, ort_preds)
+                self.acc_origin_and_tf_serving += is_top_k_identical(ref_predictions, tf_serving_preds)
 
-        acc_origin_and_onnx_tf = acc_origin_and_onnx_tf / num_imgs * 100
-        acc_origin_and_tf_serving = acc_origin_and_tf_serving / num_imgs * 100
-        acc_origin_and_onnxruntime = acc_origin_and_onnxruntime / num_imgs * 100
+        self.acc_origin_and_onnx_tf = self.acc_origin_and_onnx_tf / num_imgs * 100
+        self.acc_origin_and_tf_serving = self.acc_origin_and_tf_serving / num_imgs * 100
+        self.acc_origin_and_onnxruntime = self.acc_origin_and_onnxruntime / num_imgs * 100
 
-        onnx_tf_test_time = np.percentile(onnx_tf_test_time, percentile)
-        tf_serving_test_time = np.percentile(tf_serving_test_time, percentile)
-        onnxruntime_test_time = np.percentile(onnxruntime_test_time, percentile)
+        self.onnx_tf_test_time = np.percentile(self.onnx_tf_test_time, self.percentile)
+        self.tf_serving_test_time = np.percentile(self.tf_serving_test_time, self.percentile)
+        self.onnxruntime_test_time = np.percentile(self.onnxruntime_test_time, self.percentile)
 
-        logging.info("------------ Inference Test Result -------------")
-        logging.info("- {} in {}".format(self.model_name, self.origin_framework))
-        logging.info("- Dataset: {}\n".format(test_dataset))
+        # logging.info("------------ Inference Test Result -------------")
+        # logging.info("- {} in {}".format(self.model_name, self.origin_framework))
+        # logging.info("- Dataset: {}\n".format(test_dataset))
+        #
+        # logging.info("Top-{} accuracy".format(self.top_k))
+        # logging.info("\t{} <--> {:^18} : {}%".format(self.origin_framework, "onnx-tf", acc_origin_and_onnx_tf))
+        # logging.info(
+        #     "\t{} <--> {:^18} : {}%".format(self.origin_framework, "TensorFlow Serving", acc_origin_and_tf_serving))
+        # logging.info(
+        #     "\t{} <--> {:^18} : {}%\n".format(self.origin_framework, "onnxruntime", acc_origin_and_onnxruntime))
+        #
+        # logging.info("Latency ({} percentile)".format(self.percentile))
+        # logging.info("\t{:^18} : {}s".format("onnx-tf", onnx_tf_test_time))
+        # logging.info("\t{:^18} : {}s".format("TensorFlow Serving", tf_serving_test_time))
+        # logging.info("\t{:^18} : {}s".format("onnxruntime", onnxruntime_test_time))
 
-        logging.info("Top-{} accuracy".format(self.top_k))
-        logging.info("\t{} <--> {:^18} : {}%".format(self.origin_framework, "onnx-tf", acc_origin_and_onnx_tf))
-        logging.info(
-            "\t{} <--> {:^18} : {}%".format(self.origin_framework, "TensorFlow Serving", acc_origin_and_tf_serving))
-        logging.info(
-            "\t{} <--> {:^18} : {}%\n".format(self.origin_framework, "onnxruntime", acc_origin_and_onnxruntime))
-
-        logging.info("Latency ({} percentile)".format(percentile))
-        logging.info("\t{:^18} : {}s".format("onnx-tf", onnx_tf_test_time))
-        logging.info("\t{:^18} : {}s".format("TensorFlow Serving", tf_serving_test_time))
-        logging.info("\t{:^18} : {}s".format("onnxruntime", onnxruntime_test_time))
-
+        self._generate_report(test_type="inference", test_dataset=test_dataset)
         server.kill()  # stop TensorFlow Serving container
         print("Finished inference test!")
 
@@ -370,7 +381,7 @@ class Performance_Tester(object):
 
         return filename_list, predictions, average_time
 
-    def _generate_repoort(self, test_type: str):
+    def _generate_report(self, test_type, test_dataset):
         """Generate test report and write to `report` file
 
         Args:
@@ -379,7 +390,82 @@ class Performance_Tester(object):
         """
         assert test_type in ["conversion", "inference"], "Test type can only be either `conversion` or `inference`"
 
-        report_file_path = self.paths["report"]
+        with self.paths["report"].open("a") as f:
 
-        if test_type == "conversion":
-            pass
+            title = " MODEL {} TEST ".format(test_type.upper())
+            f.write("{:=^60}".format(title))
+            f.write("\n")
+            f.write("- {} in {}".format(self.model_name, self.origin_framework))
+            f.write("\n")
+            f.write("- Dataset: {}".format(test_dataset))
+            f.write("\n\n")
+
+            if test_type == "conversion":
+
+                if self.origin_framework == "tensorflow":
+
+                    f.write("Top-{} accuracy".format(self.top_k))
+                    f.write("\n")
+                    f.write(f"\tTensorFlow <-> MATLAB   : {self.acc_origin_mat}%")
+                    f.write("\n")
+                    f.write("\n")
+                    f.write("Average prediction time")
+                    f.write("\n")
+                    f.write(f"\tTensorFlow : {self.avg_pred_time_tf}s")
+                    f.write("\n")
+                    f.write(f"\tMATLAB     : {self.avg_pred_time_mat}s")
+                    f.write("\n")
+
+                elif self.origin_framework == "pytorch":
+
+                    f.write("Top-{} accuracy".format(self.top_k))
+                    f.write("\n")
+                    f.write(f"\tPyTorch <-> MATLAB     : {self.acc_origin_mat}%")
+                    f.write("\n")
+                    f.write(f"\tPyTorch <-> TensorFlow : {self.acc_origin_tf}%")
+                    f.write("\n\n")
+                    f.write("Average prediction time")
+                    f.write("\n")
+                    f.write(f"\tPyTorch    : {self.avg_pred_time_torch}s")
+                    f.write("\n")
+                    f.write(f"\tTensorFlow : {self.avg_pred_time_tf}s")
+                    f.write("\n")
+                    f.write(f"\tMATLAB     : {self.avg_pred_time_mat}s")
+                    f.write("\n")
+
+                else:
+
+                    f.write("Top-{} accuracy".format(self.top_k))
+                    f.write("\n")
+                    f.write(f"\tMATLAB <-> TensorFlow : {self.acc_origin_tf}%")
+                    f.write("\n")
+                    f.write("\n")
+                    f.write("Average prediction time")
+                    f.write("\n")
+                    f.write(f"\tTensorFlow : {self.avg_pred_time_tf}s")
+                    f.write("\n")
+                    f.write(f"\tMATLAB     : {self.avg_pred_time_mat}s")
+                    f.write("\n")
+
+            else:   # Model inference test
+
+                f.write("Top-{} accuracy".format(self.top_k))
+                f.write("\n")
+                f.write("\t{} <--> {:^18} : {}%".format(self.origin_framework, "onnx-tf", self.acc_origin_and_onnx_tf))
+                f.write("\n")
+                f.write("\t{} <--> {:^18} : {}%".format(self.origin_framework, "TensorFlow Serving",
+                                                        self.acc_origin_and_tf_serving))
+                f.write("\n")
+                f.write("\t{} <--> {:^18} : {}%".format(self.origin_framework, "onnxruntime",
+                                                        self.acc_origin_and_onnxruntime))
+                f.write("\n")
+                f.write("\n")
+
+                f.write("Latency ({} percentile)".format(self.percentile))
+                f.write("\n")
+                f.write("\t{:^18} : {}s".format("onnx-tf", self.onnx_tf_test_time))
+                f.write("\n")
+                f.write("\t{:^18} : {}s".format("TensorFlow Serving", self.tf_serving_test_time))
+                f.write("\n")
+                f.write("\t{:^18} : {}s".format("onnxruntime", self.onnxruntime_test_time))
+                f.write("\n")
