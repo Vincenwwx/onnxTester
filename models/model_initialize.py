@@ -75,8 +75,7 @@ class Model_Initializer:
                 self.model.summary()
                 self.model.fit(dataset, epochs=self.epoch, steps_per_epoch=self.steps_per_epoch)
 
-                self.model.save(str(self.paths["saved_models"].joinpath("origin_{}_{}".format(self.origin_framework,
-                                                                                                 self.model_name))))
+                self.model.save(str(self.paths["saved_models"].joinpath("origin_{}_{}".format(self.origin_framework, self.model_name), "1")))
 
             elif self.origin_framework == "pytorch":
                 # get dataset loader
@@ -95,7 +94,7 @@ class Model_Initializer:
                 print("Now initialise # {} # model under framework {}".format(self.model_name,
                                                                               self.origin_framework))
                 # transfer learning
-                torch_test.torch_train_model(dataset, num_epochs=self.epoch)
+                torch_test.torch_train_model(dataset, num_epochs=self.epoch, steps_per_epoch=self.steps_per_epoch)
                 self.model = torch_test.model_ft
 
                 torch.save(self.model,

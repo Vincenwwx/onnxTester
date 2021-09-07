@@ -4,7 +4,6 @@ import argparse
 from utils import utils_params, utils_misc
 from models.model_initialize import Model_Initializer
 from evaluation.model_test import Performance_Tester
-from models.model_convert import convert_origin_model
 
 
 def main(*argv):
@@ -22,10 +21,10 @@ def main(*argv):
     args = parser.parse_args()
 
     # generate folder structure to save test result
-    run_paths = utils_params.gen_run_folder(mode=args.mode, test_id="TEST")
+    run_paths = utils_params.gen_run_folder(part_name="TEST")
 
     # set loggers
-    utils_misc.set_loggers(run_paths['program_logs'], logging.INFO)
+    utils_misc.set_loggers(run_paths['program_log'], logging.INFO)
 
     # gin-config
     gin.parse_config_files_and_bindings(run_paths['gin_file'], logging.INFO)
@@ -42,9 +41,9 @@ def main(*argv):
 
     # Test and compare the origin and exported models
     tester = Performance_Tester(origin_framework=args.origin_framework,
-                                model_object=model_initializer.model,
+                                model_name=args.model_name,
                                 paths=run_paths)
-    tester.test_models()
+    tester.test_model_conversion()
 
 
 if __name__ == "__main__":

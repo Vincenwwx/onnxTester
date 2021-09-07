@@ -25,8 +25,20 @@ The deep learning frameworks to test here include:
 
 ## Pre-requisite
 
-python=3.6  
-MATLAB=2020b
+MATLAB == 2020b
 
+python == 3.7  
+
+onnx
+```shell
+pip install numpy protobuf==3.16.0
+pip install onnx
+```
+onnxruntim
+```shell
+pip install onnxruntime
+```
+
+tensorflow == 2.6.0
 
 ## Usage

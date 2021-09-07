@@ -96,18 +96,16 @@ class Torch_Test:
         elif optimizer == "Adam":
             self.optimizer_ft = torch_optimizer.Adam(params_to_update, learning_rate)
 
-    def torch_train_model(self, dataloaders, num_epochs=10):
+    def torch_train_model(self, dataloaders, num_epochs=5, steps_per_epoch=8):
         """
         The function trains for the specified number of epochs and after each epoch runs a full validation step.
+        :param steps_per_epoch: number of steps per epoch
         :param dataloaders:     dictionary of dataloaders
         :param num_epochs:      number of epochs
         :return: None
         """
 
-        # Training
         since = time.time()
-
-        best_model_wts = copy.deepcopy(self.model_ft.state_dict())
         self.model_ft.train()  # Set model to training mode
 
         for epoch in range(num_epochs):
@@ -116,10 +114,14 @@ class Torch_Test:
 
             # Each epoch has a training phase
             running_loss = 0.0
-            # running_corrects = 0
+            steps = 0
 
             # Iterate over data.
             for image_batch, labels_batch in dataloaders:
+
+                if steps >= steps_per_epoch:
+                    break
+
                 image_batch = image_batch.to(self.device)
                 labels_batch = labels_batch.to(self.device)
 
@@ -151,40 +153,14 @@ class Torch_Test:
 
                 # statistics
                 running_loss += loss.item() * image_batch.size(0)
-                # running_corrects += torch.sum(preds == labels.data)
+                steps += 1
 
-            epoch_loss = running_loss / len(dataloaders.dataset)
-            # epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
-
+            epoch_loss = running_loss / steps_per_epoch
             print("Epoch Loss: {:.4f}".format(epoch_loss))
-            # print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
-
-            # deep copy the model
-            # if phase == 'val' and epoch_acc > best_acc:
-            #     best_acc = epoch_acc
-            #     best_model_wts = copy.deepcopy(self.model_ft.state_dict())
-            # if phase == 'val':
-            #     val_acc_history.append(epoch_acc)
-
             print()
 
         time_elapsed = time.time() - since
         print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-        # print('Best val Acc: {:4f}'.format(best_acc))
-
-        # load best model weights
-        self.model_ft.load_state_dict(best_model_wts)
-
-    # todo: comple test function
-    def test_model(self, dataloader):
-
-        since = time.time()
-        self.model_ft.eval()    # set model to evaluation mode, i.e. weights not be updated
-        acc = 0
-        running_loss = 0
-
-        for sample in dataloader:
-            pass
 
     def set_parameter_requires_grad(self):
         """

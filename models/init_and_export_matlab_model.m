@@ -131,7 +131,7 @@ trailingAvgSqClassifier = [];
 
 % specify training options
 miniBatchSize = 64;
-numEpochs = 25;
+numEpochs = 5;
 plots = "training-progress";
 executionEnvironment = "auto"; % train on a GPU if one is available
 
@@ -147,8 +147,8 @@ end
 
 iteration = 0;
 numObservationsAll = numel(annotationsAll);
-numIterationsPerEpoch = floor(numObservationsAll / miniBatchSize);
-%numIterationsPerEpoch = 2;
+%numIterationsPerEpoch = floor(numObservationsAll / miniBatchSize);
+numIterationsPerEpoch = 8;
 start = tic;
 
 % Loop over epochs.
@@ -223,7 +223,7 @@ dlnet = dlnetwork(lgraph);
 
 %% export the model to .onnx
 
-fileName = fullfile(savePath, "matlab_"+modelName+".onnx");
+fileName = fullfile(savePath, "origin_matlab_"+modelName+".onnx");
 exportONNXNetwork(dlnet, fileName);
 
 re = "finished";
