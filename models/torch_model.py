@@ -3,16 +3,14 @@ import torch.nn as nn
 import torch.optim as torch_optimizer
 from torchvision import models
 import time
-import copy
 import gin
 
 
 @gin.configurable
 class Torch_Test:
+    """ Generate and train models in PyTorch.
     """
-    generate and train models in PyTorch
-    """
-    def __init__(self, num_classes=91, feature_extract=True):
+    def __init__(self, num_classes, feature_extract=True):
 
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         # Setup the loss function, here we use cross entropy loss

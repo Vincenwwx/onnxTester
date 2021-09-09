@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 import torch
 import onnx
+import gin
 from onnx_tf.backend import prepare
 import matlab.engine
 import logging
@@ -10,12 +11,13 @@ import time
 import onnxruntime
 from data_pipeline.tf_preprocess import tf_load_and_preprocess_single_img
 from data_pipeline.torch_datareader import torch_load_and_preprocess_single_img
-from evaluation.inference_helper import send_single_img_to_tensorflow_serving, \
-    init_tf_serving_docker, is_top_k_identical
+from evaluation.docker_helper import send_single_img_to_tensorflow_serving, \
+    init_tf_serving_docker
 
 
+@gin.configurable
 class Performance_Tester(object):
-    """Performance tester
+    """Conduct the model conversion and inference test
 
     Args:
         model_name (str): specify name of model ("vgg16", "resnet50" or "inceptionv3")
@@ -39,12 +41,12 @@ class Performance_Tester(object):
                 self.paths["saved_models"].joinpath("origin_{}_{}.pt".format(origin_framework, model_name)))
             self.model_object = torch.load(model_path)
             self.model_object.eval()  # set pytorch model to evaluation model
-            print("[System] Successfully load saved model {} under {}".format(model_name, origin_framework))
+            logging.info("[System] Successfully load saved model {} under {}".format(model_name, origin_framework))
         elif origin_framework == "tensorflow":
             model_path = str(
                 self.paths["saved_models"].joinpath("origin_{}_{}".format(origin_framework, model_name), "1"))
             self.model_object = tf.keras.models.load_model(model_path)
-            print("[System] Successfully load saved model {} under {}".format(model_name, origin_framework))
+            logging.info("[System] Successfully load saved model {} under {}".format(model_name, origin_framework))
         else:
             model_path = self.paths["saved_models"].joinpath("origin_{}_{}.onnx".format(origin_framework, model_name))
             assert model_path.exists(), "[Error] MATLAB saved model doesn't exist!"
@@ -64,13 +66,15 @@ class Performance_Tester(object):
     def test_model_conversion(self, test_dataset="val"):
         """Test onnx's ability to convert model by comparing the performance of exported models with
         the origin model.
+
+        Args:
+            test_dataset (str): specify test dataset folder
         """
-        print("{ Model conversion test }")
+        logging.info("[System] Model conversion test starts")
         dataset_path = self.paths["coco_dataset"].joinpath("images", test_dataset)
 
         # variables for model conversion test
         self.acc_origin_tf = 0
-        self.acc_origin_torch = 0
         self.acc_origin_mat = 0
         self.avg_pred_time_tf = 0
         self.avg_pred_time_torch = 0
@@ -79,6 +83,7 @@ class Performance_Tester(object):
         # test model in MATLAB
         imgs_name_list, matlab_preds, self.avg_pred_time_mat = self.test_model_in_matlab(dataset_path=str(dataset_path))
         num_imgs = len(imgs_name_list)
+        logging.info("[System] Find {} test images in `{}` dataset".format(num_imgs, test_dataset))
 
         if self.origin_framework == "tensorflow":
             """ When the origin model is in tf, compare the model with model in MATLAB.
@@ -88,24 +93,16 @@ class Performance_Tester(object):
 
             for i in range(num_imgs):
                 print("\tNow testing the {}/{} image...".format(i, num_imgs))
-
                 image = tf_load_and_preprocess_single_img(imgs_name_list[i], size=self.size)
+
                 # predict with tf model and compare with matlab
                 tf_start_time = time.time()
                 tf_predictions = self.model_object.predict(image)
                 tf_test_time += (time.time() - tf_start_time)
-                acc_tf_mat += is_top_k_identical(matlab_preds[i], tf_predictions)
+                acc_tf_mat += self._is_top_k_identical(matlab_preds[i], tf_predictions)
 
             self.acc_origin_mat = acc_tf_mat / num_imgs * 100
             self.avg_pred_time_tf = tf_test_time / num_imgs
-
-            # logging.info("{:=^50}".format(" Model Conversion Test "))
-            # basic = " {} in {} ".format(self.model_name, self.origin_framework)
-            # logging.info("{:-^50}".format(basic))
-            # logging.info("Top-{} ")
-            # logging.info(f"Accuracy of tf <-> matlab: {acc_tf_mat}%")
-            # logging.info(f"Average prediction time of tensorflow: {tf_avg_time}s")
-            # logging.info(f"Average prediction time of MATALB: {matlab_avg_time}s\n")
 
         elif self.origin_framework == "pytorch":
             """ When the origin model is in torch, compare it with models in tf and MATLAB.
@@ -116,9 +113,7 @@ class Performance_Tester(object):
             acc_torch_mat = 0
 
             onnx_tf_sess = prepare(self.onnx_object)  # get tf model
-            exported_tf_path = self.paths["saved_models"].joinpath("exported_tf", "1")
-            if not exported_tf_path.exists():
-                onnx_tf_sess.export_graph(str(exported_tf_path))
+            exported_tf_path = self._onnx_tf_export(onnx_tf_sess)
             loaded = tf.saved_model.load(str(exported_tf_path))
             infer = loaded.signatures["serving_default"]
             for k, _ in infer.structured_outputs.items():
@@ -141,21 +136,13 @@ class Performance_Tester(object):
                 tf_test_time += (time.time() - tf_start_time)
 
                 torch_predictions = torch_predictions.detach().numpy()
-                acc_torch_tf += is_top_k_identical(torch_predictions, tf_predictions)
-                acc_torch_mat += is_top_k_identical(torch_predictions, matlab_preds[i])
+                acc_torch_tf += self._is_top_k_identical(torch_predictions, tf_predictions)
+                acc_torch_mat += self._is_top_k_identical(torch_predictions, matlab_preds[i])
 
             self.acc_origin_tf = acc_torch_tf / num_imgs * 100
             self.acc_origin_mat = acc_torch_mat / num_imgs * 100
             self.avg_pred_time_torch = torch_test_time / num_imgs
             self.avg_pred_time_tf = tf_test_time / num_imgs
-
-            # logging.info("------------ Conversion Test Result -------------")
-            # logging.info("\t--- {} in {} ---".format(self.model_name, self.origin_framework))
-            # logging.info(f"Accuracy of torch <-> matlab: {acc_torch_mat}%")
-            # logging.info(f"Accuracy of torch <-> tensorflow: {acc_torch_tf}%")
-            # logging.info(f"Average prediction time of PyTorch: {torch_avg_time}s")
-            # logging.info(f"Average prediction time of tensorflow: {tf_avg_time}s")
-            # logging.info(f"Average prediction time of MATALB: {matlab_avg_time}s\n")
 
         else:
             """ When the origin model is in MATLAB, compare it with model in tf.
@@ -165,9 +152,7 @@ class Performance_Tester(object):
 
             # export onnx model to tf
             onnx_tf_sess = prepare(self.onnx_object)  # get tf model
-            exported_tf_path = self.paths["saved_models"].joinpath("exported_tf", "1")
-            if not exported_tf_path.exists():
-                onnx_tf_sess.export_graph(str(exported_tf_path))
+            exported_tf_path = self._onnx_tf_export(onnx_tf_sess)
             # load tf (saved) model
             loaded = tf.saved_model.load(str(exported_tf_path))
             infer = loaded.signatures["serving_default"]
@@ -184,26 +169,20 @@ class Performance_Tester(object):
                 tf_predictions = infer(tf.constant(image))[output_layer_name]
                 tf_test_time += (time.time() - tf_start_time)
 
-                acc_mat_tf += is_top_k_identical(matlab_preds[i], tf_predictions)
+                acc_mat_tf += self._is_top_k_identical(matlab_preds[i], tf_predictions)
 
             self.acc_origin_tf = acc_mat_tf / num_imgs * 100
             self.avg_pred_time_tf = tf_test_time / num_imgs
 
-            # logging.info("\n------------ Conversion Test Result -------------")
-            # logging.info("\t--- {} in {} ---".format(self.model_name, self.origin_framework))
-            # logging.info(f"Accuracy of MATLAB <-> tensorflow: {acc_mat_tf}%")
-            # logging.info(f"Average prediction time of tensorflow: {tf_avg_time}s")
-            # logging.info(f"Average prediction time of MATALB: {matlab_avg_time}s")
-
         self._generate_report(test_type="conversion", test_dataset=test_dataset)
-        print("Finished model conversion test!")
+        logging.info("[System] Finished model conversion test!")
 
     def test_model_inference(self, test_dataset="val"):
         """ Test exported onnx model regarding model inference with different runtime backends,
         which in our case includes onnxruntime, onnx-tf and MATLAB.
         """
-        print("{ Model Inference Test }")
-        # varaibles for model inference test
+        logging.info("[System] Model inference test starts")
+        # variables for model inference test
         self.acc_origin_and_onnx_tf = 0
         self.acc_origin_and_onnxruntime = 0
         self.acc_origin_and_tf_serving = 0
@@ -215,7 +194,7 @@ class Performance_Tester(object):
         dataset_path = self.paths["coco_dataset"].joinpath("images", test_dataset)
         imgs_path_list = list(sorted(dataset_path.glob("*.jpg")))
         num_imgs = len(imgs_path_list)
-        print("Find {} test images".format(num_imgs))
+        logging.info("[System] Find {} test images in `{}` dataset".format(num_imgs, test_dataset))
 
         # init onnxruntime
         ort_sess = onnxruntime.InferenceSession(str(self.onnx_path))  # init onnxruntime session
@@ -248,19 +227,13 @@ class Performance_Tester(object):
                 ort_preds = ort_sess.run(None, {ort_input_name: image.astype(np.float32)})[0]
                 self.onnxruntime_test_time.append(time.time() - ts)
 
-                self.acc_origin_and_onnx_tf += is_top_k_identical(tf_preds, onnx_tf_preds)
-                self.acc_origin_and_onnxruntime += is_top_k_identical(tf_preds, ort_preds)
-                self.acc_origin_and_tf_serving += is_top_k_identical(tf_preds, tf_serving_preds)
+                self.acc_origin_and_onnx_tf += self._is_top_k_identical(tf_preds, onnx_tf_preds)
+                self.acc_origin_and_onnxruntime += self._is_top_k_identical(tf_preds, ort_preds)
+                self.acc_origin_and_tf_serving += self._is_top_k_identical(tf_preds, tf_serving_preds)
 
         elif self.origin_framework == "pytorch":
 
-            # export to tensorflow model
-            exported_tf_path = self.paths["saved_models"].joinpath("exported_tf", "1")
-            if not exported_tf_path.exists():
-                onnx_tf_sess.export_graph(str(exported_tf_path))
-                print("[System] Successfully export {} model to TensorFlow model.".format(self.origin_framework))
-            else:
-                print("[System] Detect existent exported TensorFlow model!")
+            exported_tf_path = self._onnx_tf_export(onnx_tf_sess)
             # init TensorFlow Serving in docker
             server = init_tf_serving_docker(model_path=str(exported_tf_path.parent), model_name=self.model_name)
 
@@ -286,20 +259,13 @@ class Performance_Tester(object):
                 # init TensorFlow Serving in docker
                 self.onnxruntime_test_time.append(time.time() - ts)
 
-                self.acc_origin_and_onnx_tf += is_top_k_identical(ref_predictions, onnx_tf_preds)
-                self.acc_origin_and_onnxruntime += is_top_k_identical(ref_predictions, ort_preds)
-                self.acc_origin_and_tf_serving += is_top_k_identical(ref_predictions, tf_serving_preds)
+                self.acc_origin_and_onnx_tf += self._is_top_k_identical(ref_predictions, onnx_tf_preds)
+                self.acc_origin_and_onnxruntime += self._is_top_k_identical(ref_predictions, ort_preds)
+                self.acc_origin_and_tf_serving += self._is_top_k_identical(ref_predictions, tf_serving_preds)
 
         else:
 
-            # export to tensorflow model
-            exported_tf_path = self.paths["saved_models"].joinpath("exported_tf", "1")
-            # init TensorFlow Serving in docker
-            if not exported_tf_path.exists():
-                onnx_tf_sess.export_graph(str(exported_tf_path))
-                print("[System] Successfully export {} model to TensorFlow model.".format(self.origin_framework))
-            else:
-                print("[System] Detect existent exported TensorFlow model!")
+            exported_tf_path = self._onnx_tf_export(onnx_tf_sess)
             server = init_tf_serving_docker(model_path=str(exported_tf_path.parent), model_name=self.model_name)
 
             _, matlab_preds, _ = self.test_model_in_matlab(dataset_path=str(dataset_path))
@@ -325,9 +291,9 @@ class Performance_Tester(object):
                 ort_preds = ort_sess.run(None, {ort_input_name: image.astype(np.float32)})[0]
                 self.onnxruntime_test_time.append(time.time() - ts)
 
-                self.acc_origin_and_onnx_tf += is_top_k_identical(ref_predictions, onnx_tf_preds)
-                self.acc_origin_and_onnxruntime += is_top_k_identical(ref_predictions, ort_preds)
-                self.acc_origin_and_tf_serving += is_top_k_identical(ref_predictions, tf_serving_preds)
+                self.acc_origin_and_onnx_tf += self._is_top_k_identical(ref_predictions, onnx_tf_preds)
+                self.acc_origin_and_onnxruntime += self._is_top_k_identical(ref_predictions, ort_preds)
+                self.acc_origin_and_tf_serving += self._is_top_k_identical(ref_predictions, tf_serving_preds)
 
         self.acc_origin_and_onnx_tf = self.acc_origin_and_onnx_tf / num_imgs * 100
         self.acc_origin_and_tf_serving = self.acc_origin_and_tf_serving / num_imgs * 100
@@ -337,25 +303,9 @@ class Performance_Tester(object):
         self.tf_serving_test_time = np.percentile(self.tf_serving_test_time, self.percentile)
         self.onnxruntime_test_time = np.percentile(self.onnxruntime_test_time, self.percentile)
 
-        # logging.info("------------ Inference Test Result -------------")
-        # logging.info("- {} in {}".format(self.model_name, self.origin_framework))
-        # logging.info("- Dataset: {}\n".format(test_dataset))
-        #
-        # logging.info("Top-{} accuracy".format(self.top_k))
-        # logging.info("\t{} <--> {:^18} : {}%".format(self.origin_framework, "onnx-tf", acc_origin_and_onnx_tf))
-        # logging.info(
-        #     "\t{} <--> {:^18} : {}%".format(self.origin_framework, "TensorFlow Serving", acc_origin_and_tf_serving))
-        # logging.info(
-        #     "\t{} <--> {:^18} : {}%\n".format(self.origin_framework, "onnxruntime", acc_origin_and_onnxruntime))
-        #
-        # logging.info("Latency ({} percentile)".format(self.percentile))
-        # logging.info("\t{:^18} : {}s".format("onnx-tf", onnx_tf_test_time))
-        # logging.info("\t{:^18} : {}s".format("TensorFlow Serving", tf_serving_test_time))
-        # logging.info("\t{:^18} : {}s".format("onnxruntime", onnxruntime_test_time))
-
         self._generate_report(test_type="inference", test_dataset=test_dataset)
         server.kill()  # stop TensorFlow Serving container
-        print("Finished inference test!")
+        logging.info("[System] Finished model inference test!")
 
     def test_model_in_matlab(self, dataset_path: str):
         """Test a model of onnx in matlab.
@@ -381,6 +331,53 @@ class Performance_Tester(object):
 
         return filename_list, predictions, average_time
 
+    def _onnx_tf_export(self, onnx_tf_sess):
+        """Use onnx-tf backend to export onnx to tf model.
+
+        Args:
+            onnx_tf_sess: onnx-tf session
+
+        Returns:
+            Pathlib.Path: exported tf model path
+
+        """
+        # export to tensorflow model
+        exported_tf_path = self.paths["saved_models"].joinpath("exported_tf", "1")
+        # init TensorFlow Serving in docker
+        if not exported_tf_path.exists():
+            onnx_tf_sess.export_graph(str(exported_tf_path))
+            logging.info("[System] Successfully export {} model to TensorFlow model.".format(self.origin_framework))
+        else:
+            logging.info("[System] Detect existent exported TensorFlow model!")
+
+        return exported_tf_path
+
+    def _is_top_k_identical(self, pred_1, pred_2):
+        """Compare two input and check if top k indices of both are identical.
+
+        Args:
+            pred_1 (unknown): first input
+            pred_2 (unknown): second input
+
+        Return:
+            boolean: True if identical, otherwise False
+
+        """
+        if not isinstance(pred_1, np.ndarray):
+            pred_1 = np.array(pred_1)
+        if not isinstance(pred_2, np.ndarray):
+            pred_2 = np.array(pred_2)
+
+        pred_1 = np.squeeze(pred_1)  # flatten
+        pred_2 = np.squeeze(pred_2)
+        assert pred_1.shape[-1] == pred_2.shape[-1], "Error: Sizes of inputs are not identical"
+        assert self.top_k <= pred_1.shape[-1], "Error: top k should be smaller or equal than size of input"
+
+        top_k_1 = np.argpartition(pred_1, -self.top_k, axis=0)[-self.top_k:]
+        top_k_2 = np.argpartition(pred_2, -self.top_k, axis=0)[-self.top_k:]
+
+        return np.array_equal(top_k_1, top_k_2)
+
     def _generate_report(self, test_type, test_dataset):
         """Generate test report and write to `report` file
 
@@ -393,7 +390,7 @@ class Performance_Tester(object):
         with self.paths["report"].open("a") as f:
 
             title = " MODEL {} TEST ".format(test_type.upper())
-            f.write("{:=^60}".format(title))
+            f.write("{:=^50}".format(title))
             f.write("\n")
             f.write("- {} in {}".format(self.model_name, self.origin_framework))
             f.write("\n")

@@ -51,12 +51,15 @@ def create_tfrecord(img_path_list, labels, tfrecord_file_name):
 
 
 def read_tfrecord(dataset):
-    """
-    read and parse tfrecord file
-    :param dataset: "val" or "train"
-    :return: tf.Dataset object
-    """
+    """ Read and parse tfrecord files.
 
+    Args:
+        dataset (str): "val" or "train"
+
+    Returns:
+        tf.Dataset: read all tfrecord files as tf.Dataset object
+
+    """
     def parse_image_function(proto):
         proto = tf.io.parse_single_example(proto,
                                            features={
@@ -91,6 +94,7 @@ def prepare_for_inceptionv3(dataset):
 
 
 def prepare_for_vgg16(dataset):
+
     origin_label = dataset["labels"]
     label = tf.zeros(NUM_OF_CLASSES)  # there are 90 categories in COCO 2017
     for idx in origin_label.values:
@@ -104,6 +108,7 @@ def prepare_for_vgg16(dataset):
 
 
 def prepare_for_resnet50(dataset):
+
     origin_label = dataset["labels"]
     label = tf.zeros(NUM_OF_CLASSES)  # there are 90 categories in COCO 2017
     for idx in origin_label.values:
@@ -117,11 +122,13 @@ def prepare_for_resnet50(dataset):
 
 
 def preprocess_single_img(image, size):
+
     image = tf.image.resize(image, (size, size))
     image = tf.cast(image, tf.float32) / 255.
     image = mean_image_subtraction(image, (0.485, 0.456, 0.406))
     image = standardize_image(image, (0.229, 0.224, 0.225))
     return image
+
 
 """
     reference: https://github.com/tensorflow/models/blob/master/official/vision/image_classification/preprocessing.py
@@ -220,11 +227,9 @@ def tf_load_and_preprocess_single_img(img_path: str, size: int) -> np.ndarray:
         size (int): specify size of final image
 
     Return:
-        np.ndarray: numpy array of image
+        np.ndarray: numpy array of image, with shape: 1 * size * size * 3
     """
-
-    image = tf.keras.preprocessing.image.load_img(img_path,
-                                                  target_size=(size, size))
+    image = tf.keras.preprocessing.image.load_img(img_path, target_size=(size, size))
     image = tf.keras.preprocessing.image.img_to_array(image)
     # rescale to 0 - 1
     image = tf.cast(image, tf.float32) / 255.0

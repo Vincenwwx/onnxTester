@@ -1,18 +1,15 @@
 # model initialization
 ## Load own DL model
-Model_Initializer.dataset_name = "COCO"
 Model_Initializer.num_classes = 91
 Model_Initializer.learning_rate = 0.001
-Model_Initializer.epoch = 10
-Model_Initializer.steps_per_epoch = 100
+Model_Initializer.epoch = 5
+Model_Initializer.steps_per_epoch = 8
+Model_Initializer.momentum = 0.9
 
-# Load dataset
-TF_Dataset_loader.batch = 64
+# Dataset loader
+Dataset_loader.batch = 64
+Dataset_loader.caching = True
 
-# Transfer learning
-## TensorFlow
-Trainer.learning_rate = 0.001
-Trainer.total_steps = 1000
-Trainer.log_interval = 100
-
-## PyTorch
+# Performance tester
+Performance_Tester.top_k = 5
+Performance_Tester.percentile = 90

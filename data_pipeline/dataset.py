@@ -1,6 +1,8 @@
 import json
 import time
 import pathlib
+import logging
+import gin
 import numpy as np
 import tensorflow as tf
 from collections import defaultdict
@@ -11,9 +13,9 @@ import torch
 from torchvision import transforms
 
 
+@gin.configurable
 class Dataset_loader:
-    """
-    Folder structure:
+    """Folder structure
         - coco_2017
             - images
                 - train
@@ -21,7 +23,6 @@ class Dataset_loader:
             - annotations
             - tfrecords
     """
-
     def __init__(self, batch=64, caching=True):
         self.dataset_folder = pathlib.Path(__file__).parent.joinpath("coco_2017")
         self.dataset_folder.mkdir(exist_ok=True)
@@ -32,16 +33,17 @@ class Dataset_loader:
         self.download_coco2017_dataset()
         self.image_id_to_categories = defaultdict(list)
 
-    def load_dataset(self, framework, dataset, model_to_use,
-                     num_images_to_choose_in_train=20000):
-        """
-        get train/val dataset for specific framework
-        :param model_to_use: (str) specify for which model the dataset will be used
-        :param framework: (str) specific which DL framework
-        :param dataset: (str) one of "train", "val"
-        :param num_images_to_choose_in_train: (int) number of images to choose
-                                                    if use train dataset
-        :return: dataset object
+    def load_dataset(self, framework, dataset, model_to_use, num_images_to_choose_in_train=20000):
+        """ Get train/val dataset for specific framework
+
+        Args:
+            model_to_use (str): specify for which model the dataset will be used
+            framework (str): specific which DL framework
+            dataset (str): one of "train", "val"
+            num_images_to_choose_in_train (int): number of images to choose if use train dataset
+
+        Returns:
+            Unknown: dataset object
         """
         framework = framework.lower()
         assert framework in ["tensorflow", "pytorch"], "Supported frameworks: tensorflow, pytorch"
@@ -50,9 +52,9 @@ class Dataset_loader:
         annotation_file = self.dataset_folder.joinpath("annotations", "instances_" + dataset + "2017.json")
         with open(annotation_file, 'r') as f:
             tic = time.time()
-            print("[System] Load annotation file...")
+            logging.info("[System] Load annotation file...")
             annotation = json.load(f)
-            print('[System] Done (t={:0.2f}s)'.format(time.time() - tic))
+            logging.info('[System] Done (t={:0.2f}s)'.format(time.time() - tic))
 
         # create dictionaries / mappings
         for ann in annotation["annotations"]:
@@ -64,10 +66,6 @@ class Dataset_loader:
         if dataset == "train":
             np.random.shuffle(img_id_list)
             img_id_list = img_id_list[:num_images_to_choose_in_train]
-            # delete the rest images
-            # for img_id in img_id_list[num_images_to_choose_in_train:]:
-            #     self.dataset_folder.joinpath("images", dataset,
-            #                                  "{:012d}.jpg".format(int(img_id))).unlink(missing_ok=True)
 
         img_path_list = [self.dataset_folder.joinpath("images", dataset, "{:012d}.jpg".format(int(img_id)))
                          for img_id in img_id_list]
@@ -105,20 +103,22 @@ class Dataset_loader:
                                                shuffle=True, num_workers=6)
 
     def download_coco2017_dataset(self, dataset=None):
-        """
-        download COCO 2017 dataset
-        :param dataset: (str) can be "val" or "train"
-        :param num:
-        :return:
+        """ Download COCO 2017 dataset images or annotations.
+
+        Args:
+            dataset (str): can be either "val" or "train"
+
+        Returns:
+            None
         """
         image_folder = self.dataset_folder.joinpath("images")
         annotation_folder = self.dataset_folder.joinpath("annotations")
 
         if dataset:
-            assert dataset in ["val", "train"], "Only validation and train dataset can be download"
+            assert dataset in ["val", "train"], "Only validation and training dataset can be downloaded."
             if not image_folder.joinpath(dataset).exists():
                 tic = time.time()
-                print("[System] Now download {} dataset...".format(dataset))
+                logging.info("[System] Now download {} dataset...".format(dataset))
                 image_zip = tf.keras.utils.get_file(str(image_folder.joinpath(dataset + ".zip")),
                                                     cache_subdir=image_folder,
                                                     origin="http://images.cocodataset.org/zips/" + dataset + "2017.zip",
@@ -126,16 +126,16 @@ class Dataset_loader:
                 pathlib.Path(image_zip).unlink()
                 rename_folder = image_folder.joinpath(dataset)
                 image_folder.joinpath(dataset + "2017").rename(rename_folder)
-                print("[System] Finish download {} dataset.(t={})".format(dataset, tic - time.time()))
+                logging.info("[System] Finish download {} dataset.(t={})".format(dataset, tic - time.time()))
             else:
-                print("[System] % {} % dataset already exists".format(dataset))
+                logging.info("[System] % {} % dataset already exists".format(dataset))
 
         if not annotation_folder.exists():
             tic = time.time()
-            print("[System] Now download annotations...")
+            logging.info("[System] Now download COCO 2017 annotations...")
             annotation_zip = tf.keras.utils.get_file(str(annotation_folder.parent) + "/annotations.zip",
                                                      cache_subdir=annotation_folder.parent,
                                                      origin="http://images.cocodataset.org/annotations/annotations_trainval2017.zip",
                                                      extract=True)
             pathlib.Path(annotation_zip).unlink()
-            print("[System] Finish download annotations.(t={})".format(tic - time.time()))
+            logging.info("[System] Finish download annotations.(t={})".format(tic - time.time()))

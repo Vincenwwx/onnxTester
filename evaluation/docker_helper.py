@@ -37,7 +37,7 @@ def init_tf_serving_docker(model_path: str, model_name: str,
     c = client.containers.run(image, detach=True, remove=auto_delete,
                               ports=port, environment=env, volumes=volumes)
     time.sleep(8)  # time to start the container
-    print("[System] Init TensorFlow Serving for model {} in container...".format(model_name))
+    logging.info("[System] Successfully start TensorFlow Serving container for model {}!".format(model_name))
 
     return c
 
@@ -67,7 +67,6 @@ def send_single_img_to_tensorflow_serving(image: np.ndarray,
     ts = time.time()
     json_response = requests.post(target, data=data, headers=headers)
     interval = time.time() - ts
-
     # get prediction
     predictions = json.loads(json_response.text)['predictions'][0]
 
@@ -100,22 +99,3 @@ def is_top_k_identical(pred_1, pred_2, top_k=5):
     top_k_2 = np.argpartition(pred_2, -top_k, axis=0)[-top_k:]
 
     return np.array_equal(top_k_1, top_k_2)
-
-
-def generate_inference_test_report(model_name, origin_framework, top_k, latency_percentile, test_dataset,
-                                   acc_origin_and_onnx_tf, acc_origin_and_tf_serving, acc_origin_and_onnxruntime,
-                                   latency_onnx_tf, latency_tf_serving, latency_onnxruntime):
-    logging.info("------------ Test Result -------------")
-    logging.info("\t--- {} in {} ---".format(model_name, origin_framework))
-    logging.info("\t- Dataset: {} - ".format(test_dataset))
-
-    logging.info("Top-{} accuracy:".format(top_k))
-    logging.info("\t{} <--> {}: {}".format(origin_framework, "onnx-tf", acc_origin_and_onnx_tf))
-    logging.info(
-        "\t{} <--> {}: {}".format(origin_framework, "TensorFlow Serving", acc_origin_and_tf_serving))
-    logging.info("\t{} <--> {}: {}".format(origin_framework, "onnxruntime", acc_origin_and_onnxruntime))
-
-    logging.info("Latency ({} percentile):".format(latency_percentile))
-    logging.info("\tonnx-tf: {}".format(latency_onnx_tf))
-    logging.info("\tTensorFlow Serving: {}".format(latency_tf_serving))
-    logging.info("\tonnxruntime: {}".format(latency_onnxruntime))

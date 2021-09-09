@@ -10,12 +10,15 @@ def gen_run_folder(part_name="", whole_name=""):
 
     Example:
         $: gen_run_folder(part_name="test")
-        will generate a folder name "2021-07-21@00-29-14-123456_tesr"
-        in test_result folder
+        will generate a folder named "2021-07-21@00-29-14-123456_tesr" in `test_result folder`
 
     Args:
         part_name (str): specify part of the folder name
         whole_name (str): specify the whole folder name
+
+    Returns:
+        None
+
     """
     run_paths = dict()
     date_creation = datetime.datetime.now().strftime('%Y-%m-%d@%H-%M-%S-%f')
@@ -31,6 +34,7 @@ def gen_run_folder(part_name="", whole_name=""):
 
     run_paths['root'] = test_folder_root
     run_paths['program_log'] = test_folder_root.joinpath("program_log")
+    run_paths['gin_file'] = pathlib.Path(__file__).parents[1].joinpath("configs", "config.gin")
     run_paths['gin_log'] = test_folder_root.joinpath("config_operative.gin")
     run_paths['report'] = test_folder_root.joinpath("report")
     run_paths['coco_dataset'] = pathlib.Path(__file__).resolve().parents[1]\

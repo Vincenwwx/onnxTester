@@ -1,4 +1,4 @@
-function re = init_and_export_matlab_model(info)
+function exportedModelPath = init_and_export_matlab_model(info)
 % initialize model and do transfer learning
 % then output the model to specific path
 % :param modelName: name of model to init
@@ -209,24 +209,12 @@ else
 end
 dlnet = dlnetwork(lgraph);
 
-%% test the model
-
-% read coco annotation file (val)
-% coco_root = fullfile(pwd, "coco_2017");
-% filename = fullfile(coco_root,"annotations", "instances_val2017.json");
-% str = fileread(filename);
-% data = jsondecode(str);
-% % sort according to image id
-% [~,idx] = sort([data.annotations.image_id]);
-% data.annotations = data.annotations(idx);
-
-
 %% export the model to .onnx
 
 fileName = fullfile(savePath, "origin_matlab_"+modelName+".onnx");
 exportONNXNetwork(dlnet, fileName);
 
-re = "finished";
+exportedModelPath = fileName;
 
 %% Auxiliary Functions
 
