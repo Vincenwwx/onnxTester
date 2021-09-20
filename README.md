@@ -123,6 +123,21 @@ chmod +x main.py
 # Run the software
 ./main.py (-p MODEL_PATH | -n {inceptionv3, resnet50, vgg16}) {origin_framework} {test_type}
 ```
+### Recommended
+The software will automatically download the COCO dataset with TensorFlow interfaces but normally it will be quicker
+for user to download the dataset manually.
+
+Therefore before running the software, download the COCO 2017 dataset and unzip it under the `data_pipeline` folder 
+and the folder structure should be like:
+```
+- data_pipeline
+    - coco_2017
+        - annotations (Annotation files are kept under this folder)
+        - images
+            - val (Images for validation are kept uder this folder)
+            - train (Images for training are kept under this folder)
+```
+And the [link](https://cocodataset.org/#download) for downloading COCO dataset.
 ## Examples
 ### Execute model conversion test
 Suppose we want to auto generate a `inception-V3` model in `TensorFlow` and benchmark with that:
