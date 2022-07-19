@@ -3,7 +3,7 @@
 ## About the Project
 
 ### Title
-[Eng] _Investigate An Open Neural Network By Using One Neural Network Classifier_
+[Eng] _Analysis of The Open Neural Network Exchange (ONNX) Format_
 
 [DE] _Untersuchung eines offenen Neural Network Exchange Formats 
 anhand eines Deep Neural Network Klassifikators_
