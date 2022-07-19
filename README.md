@@ -221,10 +221,13 @@ MATLAB     | 99.50%  | 99.50%             | 99.50%
 
 ### 90-Percentile Latency
 ![L_vgg16](https://user-images.githubusercontent.com/49132368/132762026-b0e48d86-00f7-43fb-9635-fdfa0b354854.png)
-_Figure 4. Latency of VGG-16 model inference test_
+
+*Figure 4. Latency of VGG-16 model inference test*
 
 ![L_resnet](https://user-images.githubusercontent.com/49132368/132762024-fcd1570d-94e7-40d4-808d-e601016c1df7.png)
-_Figure 4. Latency of ResNet-50 model inference test_
+
+_Figure 5. Latency of ResNet-50 model inference test_
 
 ![L_incpt](https://user-images.githubusercontent.com/49132368/132762020-4601f48f-3f89-4858-95e8-371556210568.png)
-_Figure 4. Latency of Inception-V3 model inference test_
+
+_Figure 6. Latency of Inception-V3 model inference test_
