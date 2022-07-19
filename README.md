@@ -1,20 +1,12 @@
 # onnxTester
 
-## About the Project
+## Introduction
 
-### Title
-[Eng] _Analysis of The Open Neural Network Exchange (ONNX) Format_
+The project onnxTester aims at analysing the performance of the open neural exchange (ONNX) format, which is used by 
+data scientists or machine learning engineers to decouple the neural network models from frameworks like Tensorflow, 
+Pytorch. 
 
-[DE] _Untersuchung eines offenen Neural Network Exchange Formats 
-anhand eines Deep Neural Network Klassifikators_
-
-### Stuff
-**Author:** Wenxin Wang, University of Stuttgart
-
-**Tutor:** Simon Kamm, IAS, University of Stuttgart
-
-## Description
-### About ONNX and ONNXruntime
+### ONNX and ONNXruntime
 [ONNX](https://github.com/onnx/onnx) is an open intermediate format for many prevalent Deep Learning (DL) frameworks, 
 for instance TensorFlow, PyTorch, MXNET, enabling interoperability between different frameworks and streamlining the 
 path from research to production helps increase the speed of innovation in the AI community.
@@ -23,22 +15,32 @@ path from research to production helps increase the speed of innovation in the A
 training machine-learning accelerator.
 
 ### Scenario
-Suppose now you receive a well-trained _PyTorch_ model, but you're actually an _TensorFlow_ expert and do want 
-to integrate this trained model in your work without rebuilding and training a same model again in TensorFlow, 
-then you can use ONNX.
+Let's say you are a [TensorFlow](https://www.tensorflow.org/) expert but someday receive a well-trained [PyTorch](https://pytorch.org/) 
+model from another colleague who is absolutely a PyTorch freak. To work directly on such model file, you can then ask that colleague to export the neural 
+network as a .onnx file, which can be later loaded and operated in TensorFlow. 
 
-**However, will the model performance degrade?**
+**However, you question if the model can still perform well as it is in PyTorch...**
 
-### Conducted tests
-We have built a tool named _onnxTester_ to evaluate the interoperability of ONNX (and ONNXruntime) regarding
-1. converting trained models
-2. inferencing models
-
-### Tested frameworks
+## Evaluation
+### Target platforms
 The deep learning frameworks to test in the project include:
 - TensorFlow
 - PyTorch
-- MATLAB
+- [MATLAB deep learning toolbox](https://www.mathworks.com/products/deep-learning.html)
+
+Inference engines/backends to be benchmarked include:
+- TensorFlow Backend for ONNX: [onnx-tf](https://github.com/onnx/onnx-tensorflow)
+- Official model serving system by TensorFlow: [TensorFlow Serving](https://github.com/tensorflow/serving)
+- onnxruntime
+
+### Tasks 
+_onnxTester_ evaluates the interoperability of ONNX (and ONNXruntime) by conducting the following task:
+1. inter-converting a trained model in different frameworks
+2. comparing the latency and accuracy of model inference using different runtimes
+by comparing:
+- top-5 accuracy consistency
+- average prediction time
+- 90-percentile prediction latency
 
 # Installation
 
